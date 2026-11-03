@@ -61,7 +61,6 @@
   const style = document.createElement('style');
   style.textContent = `
     #artistList .artist-favorite { display:none !important; }
-    #artistDetailStatus { display:none !important; }
     .artist-title-row {
       display:flex;
       align-items:baseline;
@@ -119,7 +118,6 @@
   const technicalStatus = $('#artistDetailStatus');
   if (!title || !technicalStatus) return;
 
-  technicalStatus.hidden = true;
   const titleRow = document.createElement('div');
   titleRow.className = 'artist-title-row';
   title.before(titleRow);
@@ -299,7 +297,8 @@
   const openArtistBase = openArtist;
   openArtist = function openArtistWithCountryAndGenre(name) {
     openArtistBase(name);
-    technicalStatus.hidden = true;
+    const entry = cache[name];
+    technicalStatus.hidden = !['pending', 'not_found'].includes(entry?.status);
     countryCode.textContent = '';
     renderMetadataState('Cargando país y género…');
 

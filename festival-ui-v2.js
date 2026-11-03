@@ -144,9 +144,9 @@
       display: block;
       overflow: hidden;
       color: #fff;
-      font-size: 16px;
-      line-height: 1.2;
-      letter-spacing: -.2px;
+      font-size: 18px;
+      line-height: 1.15;
+      letter-spacing: -.35px;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
@@ -156,10 +156,6 @@
       color: #aaa0af;
       font-size: 12px;
       line-height: 1.25;
-    }
-    .day-card-copy small b {
-      color: #ddd3e1;
-      font-weight: 900;
     }
     .day-card-arrow-v2 {
       position: relative;
@@ -200,13 +196,14 @@
     content.innerHTML = `<div class="day-cards day-cards-v2">${Object.keys(FESTIVAL.days).map(day => {
       const meta = DAY_META[day];
       const count = FESTIVAL.days[day].length;
+      const countLabel = `${count} ${count === 1 ? 'actuación' : 'actuaciones'}`;
       return `
         <button
           class="day-card day-card-v2"
           type="button"
           data-day="${escapeHtml(day)}"
           style="--day-accent:${meta.accent};--day-accent-rgb:${meta.rgb}"
-          aria-label="Abrir ${escapeHtml(DAY_LABELS[day])}, ${count} actuaciones">
+          aria-label="Abrir ${escapeHtml(DAY_LABELS[day])}, ${countLabel}">
           <span class="day-card-date" aria-hidden="true">
             <span class="day-card-weekday">${meta.weekday}</span>
             <strong>${meta.number}</strong>
@@ -214,8 +211,8 @@
           </span>
           <span class="day-card-copy">
             <span class="day-card-kicker">Jornada ${meta.sequence}</span>
-            <strong>${escapeHtml(DAY_LABELS[day])}</strong>
-            <small><b>${count}</b> actuaciones confirmadas</small>
+            <strong>${countLabel}</strong>
+            <small>Ver cartel del día</small>
           </span>
           <span class="day-card-arrow-v2" aria-hidden="true">↗</span>
         </button>`;

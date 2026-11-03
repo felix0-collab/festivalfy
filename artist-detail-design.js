@@ -5,8 +5,23 @@
 // still accepted as a local fallback so existing devices do not lose data.
 (() => {
   const METADATA_STORAGE_KEY = 'festivalfy_artist_metadata_v1';
-  const staticMetadata = window.FESTIVALFY_ARTIST_METADATA || {};
+  let staticMetadata = window.FESTIVALFY_ARTIST_METADATA || {};
   const legacyMetadata = loadLegacyMetadata();
+  const staticMetadataReady = loadStaticMetadata();
+
+  function loadStaticMetadata() {
+    if (Object.keys(staticMetadata).length) return Promise.resolve(staticMetadata);
+    return new Promise(resolve => {
+      const script = document.createElement('script');
+      script.src = './artist-metadata-static.js';
+      script.onload = () => {
+        staticMetadata = window.FESTIVALFY_ARTIST_METADATA || {};
+        resolve(staticMetadata);
+      };
+      script.onerror = () => resolve(staticMetadata);
+      document.head.appendChild(script);
+    });
+  }
 
   function loadLegacyMetadata() {
     try {
@@ -164,5 +179,8 @@
     const entry = cache[name];
     technicalStatus.hidden = !['pending', 'not_found'].includes(entry?.status);
     renderMetadata(metadataForAct(name));
+    staticMetadataReady.then(() => {
+      if (activeArtist === name) renderMetadata(metadataForAct(name));
+    });
   };
 })();

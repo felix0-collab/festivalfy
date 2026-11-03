@@ -66,3 +66,11 @@
     if (activeScreen === 'lineup') lineupViewState.search = event.target.value;
   });
 })();
+
+// Carga los controles para pegar manualmente un perfil de Spotify.
+(() => {
+  const script = document.createElement('script');
+  script.src = './manual-spotify-profile.js';
+  script.async = false;
+  document.body.appendChild(script);
+})();

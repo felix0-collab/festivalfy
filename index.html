@@ -1,24 +1,154 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#09080d"><title>Festivalfy</title><style>
-:root{--bg:#09080d;--panel:#121016;--panel2:#1b1721;--line:#2b2631;--text:#f7f4f8;--muted:#aaa2b0;--purple:#b24cff;--purple2:#7132d7;--green:#1ed760}*{box-sizing:border-box}html,body{margin:0;background:#050507;color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{min-height:100vh}.phone{max-width:430px;min-height:100vh;margin:auto;background:radial-gradient(circle at 82% 0,#27102f 0,transparent 30%),linear-gradient(#0b090e,#09080d);position:relative;overflow:hidden;padding-bottom:86px}.screen{display:none;min-height:calc(100vh - 86px)}.screen.active{display:block}.top{padding:22px 20px 12px;display:flex;align-items:center;justify-content:space-between}.brand{font-weight:900;font-size:27px;letter-spacing:-1.2px}.brand i{font-style:normal;color:#c85cff}.iconbtn{width:38px;height:38px;border:1px solid var(--line);background:#15121a;color:white;border-radius:50%;font-size:18px}.content{padding:0 20px}.search{display:flex;gap:10px;align-items:center;background:#19161e;border:1px solid #312b37;border-radius:14px;padding:13px 14px;color:#8f8797;margin:10px 0 22px}.search input{flex:1;background:transparent;border:0;outline:0;color:white;font-size:15px}.section-title{font-size:23px;font-weight:900;margin:0 0 13px;letter-spacing:-.5px}.festival-card{position:relative;height:292px;border-radius:20px;overflow:hidden;border:1px solid #342a3c;background:linear-gradient(155deg,#54206e 0,#24122f 43%,#111015 75%);box-shadow:0 18px 40px #0008;cursor:pointer}.festival-card:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 78% 18%,#d843c066,transparent 24%),radial-gradient(circle at 25% 42%,#7a31ff55,transparent 27%)}.poster{position:absolute;inset:0;padding:25px;display:flex;flex-direction:column;justify-content:flex-end;background:linear-gradient(0deg,#09080ef5 0,#0a08115c 57%,transparent 100%)}.poster .year{position:absolute;top:25px;left:25px;font-size:12px;font-weight:800;letter-spacing:.16em}.poster h1{font-size:40px;line-height:.92;margin:0 0 15px;letter-spacing:-2px;text-transform:uppercase}.meta{color:#d3cbd8;font-size:14px;line-height:1.6}.cta{margin-top:14px;font-weight:800;color:#d793ff;background:transparent;border:0;padding:0;text-align:left;font:inherit;cursor:pointer}.tiny{margin-top:10px;color:#77717d;font-size:12px}.back{border:0;background:transparent;color:white;font-size:25px;padding:0}.hero{height:360px;position:relative;background:radial-gradient(circle at 70% 30%,#c83eb15c,transparent 24%),linear-gradient(145deg,#50216c,#16101d 64%,#09080d);border-bottom:1px solid #27212d}.heroShade{position:absolute;inset:0;background:linear-gradient(0deg,#09080d 0,transparent 72%)}.heroTop{position:absolute;top:18px;left:18px;right:18px;display:flex;justify-content:space-between}.heroText{position:absolute;bottom:19px;left:20px;right:20px}.heroText h1{font-size:42px;line-height:.95;margin:0 0 12px;letter-spacing:-1.8px}.heroText p{margin:0;color:#cfc7d2;font-size:13px}.days{display:flex;gap:8px;overflow:auto;padding:18px 20px 12px;scrollbar-width:none}.day{min-width:64px;border:1px solid #352e3b;background:#17141c;color:#aaa2b0;border-radius:13px;padding:9px 10px;text-align:center;font-weight:800}.day b{display:block;color:#f4eff7;font-size:17px}.day.active{background:linear-gradient(145deg,#b64fff,#7732dd);border-color:transparent;color:white}.day.active b{color:white}.festivalBody{padding:0 20px}.info-pill{margin:5px 0 15px;background:#15121a;border:1px solid #2a2530;padding:11px 13px;border-radius:12px;color:#aaa2b0;font-size:12px}.artistSearch{margin:0 0 14px}.artistList{display:grid;gap:9px}.artist{display:flex;align-items:center;gap:12px;background:#15121a;border:1px solid #29242f;border-radius:15px;padding:11px}.avatar{width:52px;height:52px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#7c2fd0,#d3479e);font-weight:900}.artistText{flex:1;min-width:0}.artistText strong{display:block;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.artistText small{display:block;color:#958d9d;margin-top:4px}.spotify{width:42px;height:42px;border-radius:50%;background:var(--green);color:#07140b;text-decoration:none;display:grid;place-items:center;font-size:17px;font-weight:900}.empty{text-align:center;color:#8f8797;padding:30px 10px}.bottom{position:fixed;z-index:20;bottom:0;left:50%;transform:translateX(-50%);width:min(430px,100%);height:72px;background:#0c0a0ff2;border-top:1px solid #29232e;backdrop-filter:blur(16px);display:flex;justify-content:space-around;padding-bottom:env(safe-area-inset-bottom)}.nav{border:0;background:transparent;color:#77707e;font-size:11px;font-weight:700;width:33%}.nav span{display:block;font-size:20px;margin-bottom:3px}.nav.on{color:#c65bff}.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;background:#211b27;border:1px solid #3c3245;padding:10px 14px;border-radius:12px;font-size:12px;display:none;z-index:30}@media(min-width:600px){body{padding:24px}.phone{border-radius:30px;min-height:860px;box-shadow:0 30px 80px #000;border:1px solid #27212c}.bottom{bottom:24px;border-radius:0 0 30px 30px}}
-.festivalDetails{padding:18px 20px 8px}.festivalDetails .bigmeta{font-size:16px;line-height:1.7;color:#ddd5e1}.festivalDetails p{color:#c3bac7;line-height:1.45;margin:12px 0 16px}.greenCta{width:100%;border:0;border-radius:999px;background:#1ed760;color:#06130a;font-size:16px;font-weight:900;padding:14px 16px}.tabs{display:flex;border-bottom:1px solid #2b2631;margin-top:18px}.tab{flex:1;background:transparent;border:0;color:#c7becb;padding:14px 4px;font-weight:700}.tab.active{color:#e6a6ff;border-bottom:3px solid #bd55ff}.dayCards{display:grid;gap:10px;padding:16px 20px}.dayCard{display:flex;align-items:center;gap:13px;width:100%;text-align:left;background:#17141c;border:1px solid #302a36;border-radius:15px;padding:14px;color:white}.cal{width:42px;height:42px;border-radius:10px;background:#25202d;display:grid;place-items:center;font-size:20px}.dayCard strong{display:block;font-size:16px}.dayCard small{display:block;color:#aaa2b0;margin-top:3px}.arrow{margin-left:auto;font-size:26px;color:#ddd}.lineupHead{padding:16px 20px 8px;display:flex;align-items:center;gap:12px}.lineupHead h2{margin:0;font-size:22px}.lineupScreen{display:none}.lineupScreen.active{display:block}</style></head><body><div class="phone">
-<section id="home" class="screen active"><header class="top"><div class="brand"><i>〽</i> Festivalfy</div><button class="iconbtn" aria-label="Perfil">◉</button></header><div class="content"><div class="search">⌕ <input id="festivalSearch" placeholder="Buscar festivales" autocomplete="off"></div><h2 class="section-title">Próximamente</h2><article class="festival-card" id="openFestival" tabindex="0" role="button" onclick="showFestival()"><div class="poster"><div class="year">BARCELONA · 2027</div><h1>Primavera<br>Sound</h1><div class="meta">📍 Parc del Fòrum<br>📅 2–6 junio 2027</div><button class="cta" type="button" onclick="event.stopPropagation();showFestival()">Descubrir el cartel →</button></div></article><div class="tiny">Primera versión piloto · Más festivales próximamente</div></div></section>
-<section id="festival" class="screen"><div class="hero"><div class="heroShade"></div><div class="heroTop"><button class="back" id="back" aria-label="Volver">‹</button><button class="iconbtn" id="fav" aria-label="Guardar festival">♡</button></div><div class="heroText"><h1>Primavera Sound</h1></div></div><div class="festivalDetails"><div class="bigmeta">⌖ Barcelona<br>▣ 2–6 junio 2027</div><p>Descubre los artistas de Primavera Sound Barcelona 2027 y explora el cartel organizado por jornadas.</p><button class="greenCta" id="spotifyFestival">● &nbsp; Descubrir el cartel en Spotify ↗</button><div class="tabs"><button class="tab">Cartel</button><button class="tab active">Por días</button><button class="tab">Info</button></div></div><div class="dayCards" id="dayCards"></div></section>
-<section id="lineup" class="screen lineupScreen"><div class="lineupHead"><button class="back" id="backFestival" aria-label="Volver">‹</button><h2>Primavera Sound</h2></div><div class="days" id="days"></div><div class="festivalBody"><div class="search artistSearch">⌕ <input id="artistSearch" placeholder="Buscar artista en este día" autocomplete="off"></div><h2 class="section-title" id="dayTitle"></h2><div class="artistList" id="artistList"></div></div></section>
-<nav class="bottom"><button class="nav on" id="navHome"><span>⌂</span>Inicio</button><button class="nav" id="navSaved"><span>♡</span>Mis festivales</button><button class="nav" id="navProfile"><span>◉</span>Perfil</button></nav><div class="toast" id="toast"></div></div>
-<script>
-const data={'Mié 2':['Underworld','CHVRCHES','Mushka','FADES'],'Jue 3':['Fontaines D.C.','Massive Attack','Turnstile','Robyn','Bad Gyal','Pavement','Kim Petras','Metronomy','Wallows','Snow Strippers','underscores','Brutalismus 3000 b2b ISOxo','Metrika','Joy Orbison','Atlas Sound','Greg Freeman','Juana Molina','Haute & Freddy','Sophia Stel','Westside Cowboy','ear','Castle Rat','Friko','Gilla Band','Jersey','Alemeda','Viva Belgrado','Dame Area','Guillem Gisbert','aLex vs aLex','Al·lèrgiques al pol·len','Axolotes Mexicanos','Blackhaine','BLAYA','Carmen Villain live','Decoder','Eden Aurelius','DJ Fra','Headache','Ibrahim Alfa Jnr','Madra Salach','NAPA','Pole 1 2 3 live','Tatyana Jane','Tracey','trickpony','TRISTÁN!','TTSSFU','Verushka b2b Acidheaven'],'Vie 4':['Phoebe Bridgers','FKA twigs','The Chemical Brothers','Tinashe','Bleachers','ANOHNI','Angine de Poitrine','JT','Isaiah Rashad','BICEP','Boy Harsher','pablopablo','Weyes Blood','Vashti Bunyan','Julien Baker','Converge','AKRIILA','Have A Nice Life','English Teacher','Racing Mount Pleasant','Mishima','Lip Critic','@','Los Punsetes','Kelsey Lu','John Talabot','Full Of Hell','Mabe Fratti','Don Caballero','Carlos de Jacoba & Ciutat','S.A.S.S (Saoirse, Moxie, Peach, Shanti Celeste)','Aeronave Adolescente','Carré','El Buen Hijo','Irenegarry','Klara Lewis','Lux Lisbon','mad miran b2b DJ Zero','Malibu','Mark Fell and RP Boo','Memory Palace','Naone','Oceanic live A/V','Perfecto Miserable','Picture live','PISS','Polygonia live','Roly Porter','Sky H1 live'],'Sáb 5':['Doechii','Hayley Williams','ADÉLA','Lola Young','Prospa','Skrillex b2b Ninajirachi','Caroline Polachek','King Gizzard & The Lizard Wizard','EsDeeKid','Arca','Theodora','Shygirl','Dinosaur Jr.','Hearts2Hearts','MUNA','Bonnie "Prince" Billy','DIIV','Erin LeCount','Santiago Motorizado','ABHIR','Alcalá Norte','Dove Ellis','Rebe','Simian Mobile Disco','Jesu','B0YG1RL','Twisted Teens','Tirzah','Prostitute','Andy Stott','BAE BAE','BASHKKA b2b Mike Servito','Blanco Palamera','dani dicostas','Dulce','Gazella','Jump Source live','Livwutang b2b Konduku','Loradeniz','Marta Salogni live','mori','PLO Man','DJ /rupture','Sonido Underground: DNGDNGDNG & Phran','DJ Stingray 313 live','Victoryland','Warning'],'Dom 6':['Richie Hawtin','Four Tet','Dixon']};
-const spotifyVerified={
-'Tinashe':'https://open.spotify.com/artist/7IVZTI0LLqAvAVqKy4F9yK',
-'Doechii':'https://open.spotify.com/artist/4E2rKHVDssGJm2SCDOMMJB',
-'Hayley Williams':'https://open.spotify.com/artist/6Rx1JKzBrSzoKQtmbVmBnM'
-};
-function spotifyUrl(n){return spotifyVerified[n]||('https://open.spotify.com/search/'+encodeURIComponent(n))}
-let activeDay='Jue 3',saved=false; const $=s=>document.querySelector(s),home=$('#home'),festival=$('#festival'),lineup=$('#lineup'),days=$('#days'),list=$('#artistList'),artistSearch=$('#artistSearch');
-function activate(el){document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));el.classList.add('active');window.scrollTo(0,0)}
-function showFestival(){activate(festival);renderDayCards()} function showHome(){activate(home)} function showLineup(day){activeDay=day;activate(lineup);renderDays();renderArtists()}
-function renderDayCards(){const names={'Mié 2':'Miércoles 2 de junio','Jue 3':'Jueves 3 de junio','Vie 4':'Viernes 4 de junio','Sáb 5':'Sábado 5 de junio','Dom 6':'Domingo 6 de junio'};$('#dayCards').innerHTML=Object.keys(data).map(d=>`<button class="dayCard" data-day="${d}"><span class="cal">▣</span><span><strong>${names[d]}</strong><small>${data[d].length} artistas</small></span><span class="arrow">›</span></button>`).join('');document.querySelectorAll('.dayCard').forEach(b=>b.onclick=()=>showLineup(b.dataset.day))}
-function renderDays(){days.innerHTML=Object.keys(data).map(d=>`<button class="day ${d===activeDay?'active':''}" data-day="${d}">${d}</button>`).join('')+`<button class="day ${activeDay==='Todos'?'active':''}" data-day="Todos">Todos</button>`;days.querySelectorAll('.day').forEach(b=>b.onclick=()=>{activeDay=b.dataset.day;renderDays();renderArtists()})}
-function initials(n){return n.split(/\s+/).slice(0,2).map(x=>x[0]?.toUpperCase()).join('')} function renderArtists(){let a=activeDay==='Todos'?[...new Set(Object.values(data).flat())]:data[activeDay];let q=artistSearch.value.trim().toLowerCase();a=a.filter(x=>x.toLowerCase().includes(q));$('#dayTitle').textContent=activeDay==='Todos'?`Todo el cartel · ${a.length} artistas`:`${activeDay} · ${a.length} artistas`;list.innerHTML=a.length?a.map(n=>`<article class="artist"><div class="avatar">${initials(n)}</div><div class="artistText"><strong>${n}</strong><small>Escuchar en Spotify</small></div><a class="spotify" href="${spotifyUrl(n)}" target="_blank" rel="noopener">▶</a></article>`).join(''):`<div class="empty">No encontramos artistas.</div>`}
-$('#openFestival').onclick=showFestival;$('#openFestival').onkeydown=e=>{if(e.key==='Enter')showFestival()};$('#back').onclick=showHome;$('#backFestival').onclick=showFestival;$('#navHome').onclick=showHome;artistSearch.oninput=renderArtists;$('#spotifyFestival').onclick=()=>showLineup('Jue 3');
-function toast(t){let x=$('#toast');x.textContent=t;x.style.display='block';clearTimeout(window.tt);window.tt=setTimeout(()=>x.style.display='none',1800)} $('#fav').onclick=()=>{saved=!saved;$('#fav').textContent=saved?'♥':'♡';toast(saved?'Festival guardado':'Festival eliminado de guardados')};$('#navSaved').onclick=()=>toast(saved?'Primavera Sound 2027 está guardado':'Todavía no has guardado festivales');$('#navProfile').onclick=()=>toast('Perfil llegará en una próxima versión');$('#festivalSearch').oninput=e=>{$('#openFestival').style.display='primavera sound barcelona'.includes(e.target.value.toLowerCase())?'block':'none'};
-</script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#09080d">
+  <meta name="description" content="Descubre los artistas de tus festivales y escúchalos en Spotify.">
+  <title>Festivalfy</title>
+  <link rel="preconnect" href="https://i.scdn.co">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="app-shell" id="app">
+    <section id="homeScreen" class="screen active" aria-label="Festivales">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="Festivalfy, inicio"><span class="brand-mark">〽</span> Festivalfy</a>
+        <button class="round-button" id="profileButton" type="button" aria-label="Perfil">◉</button>
+      </header>
+
+      <div class="page-content">
+        <label class="search-box" for="festivalSearch">
+          <span>⌕</span>
+          <input id="festivalSearch" type="search" placeholder="Buscar festivales" autocomplete="off">
+        </label>
+
+        <h1 class="section-heading">Próximamente</h1>
+
+        <button class="festival-card" id="openFestival" type="button" aria-label="Abrir Primavera Sound Barcelona 2027">
+          <span class="festival-card-glow"></span>
+          <span class="festival-card-content">
+            <span class="eyebrow">BARCELONA · 2027</span>
+            <span class="festival-title">Primavera<br>Sound</span>
+            <span class="festival-meta">📍 Parc del Fòrum<br>📅 2–6 junio 2027</span>
+            <span class="festival-link">Descubrir el cartel →</span>
+          </span>
+        </button>
+
+        <p class="footnote">Primera versión piloto · Más festivales próximamente</p>
+      </div>
+    </section>
+
+    <section id="festivalScreen" class="screen" aria-label="Primavera Sound 2027">
+      <div class="festival-hero">
+        <div class="hero-overlay"></div>
+        <div class="hero-actions">
+          <button class="back-button" id="festivalBack" type="button" aria-label="Volver">‹</button>
+          <button class="round-button" id="saveFestival" type="button" aria-label="Guardar festival">♡</button>
+        </div>
+        <div class="hero-copy">
+          <span class="eyebrow">BARCELONA · 2027</span>
+          <h1>Primavera<br>Sound</h1>
+        </div>
+      </div>
+
+      <div class="festival-intro">
+        <p class="festival-facts">⌖ Barcelona<br>▣ 2–6 junio 2027</p>
+        <p>Descubre el cartel por jornadas. Los horarios y escenarios se añadirán únicamente cuando el festival los publique.</p>
+
+        <div class="spotify-panel" id="spotifyPanel">
+          <div class="spotify-panel-head">
+            <div>
+              <span class="status-dot" id="spotifyDot"></span>
+              <strong id="spotifyStatus">Spotify sin conectar</strong>
+              <small id="spotifyStatusDetail">Conecta tu cuenta para obtener perfiles e imágenes exactos.</small>
+            </div>
+          </div>
+          <button class="spotify-primary" id="spotifyConnect" type="button">Conectar Spotify</button>
+          <button class="secondary-button hidden" id="spotifySync" type="button">Sincronizar todo el cartel</button>
+          <div class="sync-progress hidden" id="syncProgress" aria-live="polite">
+            <div class="progress-track"><span id="progressFill"></span></div>
+            <span id="progressText">Preparando sincronización…</span>
+          </div>
+          <div class="spotify-tools hidden" id="spotifyTools">
+            <button type="button" id="reviewMatches">Revisar coincidencias <span id="reviewCount">0</span></button>
+            <button type="button" id="exportMatches">Exportar datos</button>
+          </div>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="Contenido del festival">
+          <button class="tab" type="button" data-tab="all">Cartel</button>
+          <button class="tab active" type="button" data-tab="days">Por días</button>
+          <button class="tab" type="button" data-tab="info">Info</button>
+        </div>
+      </div>
+
+      <div id="festivalTabContent"></div>
+    </section>
+
+    <section id="lineupScreen" class="screen" aria-label="Artistas por día">
+      <header class="lineup-header">
+        <button class="back-button" id="lineupBack" type="button" aria-label="Volver al festival">‹</button>
+        <div>
+          <small>Primavera Sound 2027</small>
+          <h1 id="lineupHeading">Jueves 3</h1>
+        </div>
+      </header>
+
+      <div class="day-selector" id="daySelector" aria-label="Seleccionar día"></div>
+
+      <div class="page-content lineup-content">
+        <label class="search-box" for="artistSearch">
+          <span>⌕</span>
+          <input id="artistSearch" type="search" placeholder="Buscar artista en este día" autocomplete="off">
+        </label>
+        <div class="list-heading">
+          <h2 id="artistCount"></h2>
+          <button class="text-button" id="syncCurrentDay" type="button">Sincronizar día</button>
+        </div>
+        <div class="artist-list" id="artistList"></div>
+      </div>
+    </section>
+
+    <section id="artistScreen" class="screen" aria-label="Ficha del artista">
+      <div class="artist-detail-hero" id="artistDetailHero">
+        <div class="hero-overlay"></div>
+        <button class="back-button floating" id="artistBack" type="button" aria-label="Volver a la lista">‹</button>
+      </div>
+      <div class="artist-detail-content">
+        <span class="eyebrow" id="artistDetailDay"></span>
+        <h1 id="artistDetailName"></h1>
+        <p id="artistDetailStatus"></p>
+        <div id="artistProfiles" class="profile-links"></div>
+        <button class="secondary-button hidden" id="artistReview" type="button">Revisar coincidencia</button>
+        <p class="spotify-attribution hidden" id="spotifyAttribution">Datos e imágenes proporcionados por Spotify. Los botones abren el contenido en Spotify.</p>
+      </div>
+    </section>
+
+    <nav class="bottom-nav" aria-label="Navegación principal">
+      <button class="nav-item active" id="navHome" type="button"><span>⌂</span>Inicio</button>
+      <button class="nav-item" id="navSaved" type="button"><span>♡</span>Mis festivales</button>
+      <button class="nav-item" id="navProfile" type="button"><span>◉</span>Perfil</button>
+    </nav>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </main>
+
+  <dialog class="review-dialog" id="reviewDialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-header">
+        <div>
+          <small>Revisión de Spotify</small>
+          <h2 id="reviewTitle">Selecciona el perfil correcto</h2>
+        </div>
+        <button class="dialog-close" value="cancel" aria-label="Cerrar">×</button>
+      </div>
+      <p id="reviewSubtitle"></p>
+      <div id="candidateList" class="candidate-list"></div>
+      <button class="secondary-button" id="skipCandidate" value="cancel" type="button">Revisar más tarde</button>
+    </form>
+  </dialog>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>

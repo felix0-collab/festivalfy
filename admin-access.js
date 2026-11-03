@@ -125,9 +125,10 @@
   }
 
   function adjustPublicArtistMessage() {
-    if (isAdmin || !window.activeArtist) return;
+    const currentArtist = typeof activeArtist === 'string' ? activeArtist : null;
+    if (isAdmin || !currentArtist) return;
     const status = document.getElementById('artistDetailStatus');
-    const entry = window.cache?.[window.activeArtist];
+    const entry = typeof cache === 'object' && cache ? cache[currentArtist] : null;
     if (!status || !entry) return;
     if (entry.status === 'pending' || entry.status === 'not_found') {
       status.hidden = false;
@@ -154,16 +155,16 @@
     observer.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['class']});
   }
 
-  if (typeof window.openArtist === 'function') {
-    const baseOpenArtist = window.openArtist;
-    window.openArtist = function openArtistWithAdminAccess(name) {
+  if (typeof openArtist === 'function') {
+    const baseOpenArtist = openArtist;
+    openArtist = function openArtistWithAdminAccess(name) {
       baseOpenArtist(name);
       lockPublicControls();
       adjustPublicArtistMessage();
     };
   }
 
-  if (accessMessage && typeof window.toast === 'function') {
-    window.setTimeout(() => window.toast(accessMessage), 100);
+  if (accessMessage && typeof toast === 'function') {
+    window.setTimeout(() => toast(accessMessage), 100);
   }
 })();

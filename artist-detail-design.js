@@ -1,43 +1,20 @@
 'use strict';
 
-// Refines the artist detail experience:
-// - favourites are selected only from the artist detail page;
-// - the technical Spotify verification sentence is removed;
-// - country and genre metadata are shown when a reliable match is available.
+// Artist detail presentation backed by a static text catalogue. Opening a
+// profile makes no external metadata request. Previously cached metadata is
+// still accepted as a local fallback so existing devices do not lose data.
 (() => {
   const METADATA_STORAGE_KEY = 'festivalfy_artist_metadata_v1';
-  const MUSICBRAINZ_ROOT = 'https://musicbrainz.org/ws/2';
-  const curatedMetadata = {
-    Underworld: {country: 'GB', genres: ['Electronic', 'Techno'], source: 'curated'}
-  };
+  const staticMetadata = window.FESTIVALFY_ARTIST_METADATA || {};
+  const legacyMetadata = loadLegacyMetadata();
 
-  let metadataCache = loadMetadataCache();
-  let activeMetadataRequest = 0;
-  let lastMusicBrainzRequestAt = 0;
-  let musicBrainzQueue = Promise.resolve();
-
-  function loadMetadataCache() {
+  function loadLegacyMetadata() {
     try {
       const parsed = JSON.parse(localStorage.getItem(METADATA_STORAGE_KEY) || '{}');
       return parsed && typeof parsed === 'object' ? parsed : {};
     } catch {
       return {};
     }
-  }
-
-  function saveMetadataCache() {
-    localStorage.setItem(METADATA_STORAGE_KEY, JSON.stringify(metadataCache));
-  }
-
-  function normalize(value) {
-    return String(value || '')
-      .normalize('NFKD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/&/g, ' and ')
-      .replace(/[^a-z0-9]+/g, ' ')
-      .trim()
-      .replace(/\s+/g, ' ');
   }
 
   function titleCaseGenre(value) {
@@ -51,7 +28,7 @@
   }
 
   function unique(values) {
-    return [...new Set(values.filter(Boolean))];
+    return [...new Set((values || []).filter(Boolean))];
   }
 
   function removeLineupHearts() {
@@ -132,7 +109,6 @@
   const metadata = document.createElement('div');
   metadata.id = 'artistMetadata';
   metadata.className = 'artist-metadata';
-  metadata.setAttribute('aria-live', 'polite');
   titleRow.after(metadata);
 
   function renderMetadataState(text) {
@@ -140,8 +116,8 @@
   }
 
   function renderMetadata(result) {
-    const countries = unique(result?.countries || []);
-    const genres = unique(result?.genres || []).slice(0, 4);
+    const countries = unique(result?.countries).slice(0, 3);
+    const genres = unique(result?.genres).slice(0, 4);
     countryCode.textContent = countries.length ? `(${countries.join('/')})` : '';
 
     if (genres.length) {
@@ -155,163 +131,38 @@
     }
   }
 
-  function enqueueMusicBrainzFetch(url) {
-    const task = musicBrainzQueue.then(async () => {
-      const wait = Math.max(0, 1100 - (Date.now() - lastMusicBrainzRequestAt));
-      if (wait) await new Promise(resolve => setTimeout(resolve, wait));
-      lastMusicBrainzRequestAt = Date.now();
-
-      const response = await fetch(url, {
-        headers: {'Accept': 'application/json'}
-      });
-      if (response.status === 404) return null;
-      if (!response.ok) throw new Error(`MusicBrainz respondió con ${response.status}`);
-      return response.json();
-    });
-
-    musicBrainzQueue = task.catch(() => null);
-    return task;
-  }
-
-  function musicBrainzArtistFromUrlPayload(payload) {
-    if (!payload) return null;
-    const roots = Array.isArray(payload.urls) ? payload.urls : [payload];
-    for (const root of roots) {
-      const relations = Array.isArray(root?.relations) ? root.relations : [];
-      const relation = relations.find(item => item?.artist?.id);
-      if (relation?.artist) return relation.artist;
-    }
-    return null;
-  }
-
-  async function findMusicBrainzArtist(profile) {
-    const spotifyUrl = profile?.id
-      ? `https://open.spotify.com/artist/${profile.id}`
-      : profile?.url;
-
-    if (spotifyUrl) {
-      const url = new URL(`${MUSICBRAINZ_ROOT}/url`);
-      url.searchParams.set('resource', spotifyUrl);
-      url.searchParams.set('inc', 'artist-rels');
-      url.searchParams.set('fmt', 'json');
-      try {
-        const payload = await enqueueMusicBrainzFetch(url.toString());
-        const linkedArtist = musicBrainzArtistFromUrlPayload(payload);
-        if (linkedArtist?.id) return linkedArtist;
-      } catch (error) {
-        console.warn('MusicBrainz Spotify URL lookup failed.', error);
-      }
-    }
-
-    const searchName = profile?.name;
-    if (!searchName) return null;
-    const searchUrl = new URL(`${MUSICBRAINZ_ROOT}/artist/`);
-    const escapedName = String(searchName).replace(/([+\-&|!(){}\[\]^"~*?:\\/])/g, '\\$1');
-    searchUrl.searchParams.set('query', `artistaccent:"${escapedName}"`);
-    searchUrl.searchParams.set('limit', '6');
-    searchUrl.searchParams.set('fmt', 'json');
-
-    try {
-      const payload = await enqueueMusicBrainzFetch(searchUrl.toString());
-      const candidates = Array.isArray(payload?.artists) ? payload.artists : [];
-      const exact = candidates.filter(candidate => normalize(candidate.name) === normalize(searchName));
-      if (exact.length === 1) return exact[0];
-      if (exact.length > 1) {
-        const veryHigh = exact.filter(candidate => Number(candidate.score || 0) >= 99);
-        if (veryHigh.length === 1) return veryHigh[0];
-      }
-    } catch (error) {
-      console.warn('MusicBrainz artist search failed.', error);
-    }
-    return null;
-  }
-
-  async function loadProfileMetadata(profile) {
-    const key = profile?.id || profile?.url || profile?.name;
-    if (!key) return {country: '', genres: []};
-    if (metadataCache[key]) return metadataCache[key];
-
-    const spotifyGenres = Array.isArray(profile?.genres) ? profile.genres : [];
-    let result = {
-      country: '',
-      genres: spotifyGenres.slice(0, 4),
-      fetchedAt: new Date().toISOString()
-    };
-
-    const musicBrainzArtist = await findMusicBrainzArtist(profile);
-    if (musicBrainzArtist?.id) {
-      try {
-        const detailUrl = new URL(`${MUSICBRAINZ_ROOT}/artist/${musicBrainzArtist.id}`);
-        detailUrl.searchParams.set('inc', 'genres+tags');
-        detailUrl.searchParams.set('fmt', 'json');
-        const detail = await enqueueMusicBrainzFetch(detailUrl.toString());
-        const genres = Array.isArray(detail?.genres)
-          ? detail.genres
-              .slice()
-              .sort((a, b) => Number(b.count || 0) - Number(a.count || 0))
-              .map(item => item.name)
-          : [];
-        result = {
-          country: detail?.country || musicBrainzArtist.country || '',
-          genres: genres.length ? genres.slice(0, 4) : result.genres,
-          musicBrainzId: musicBrainzArtist.id,
-          fetchedAt: new Date().toISOString()
-        };
-      } catch (error) {
-        console.warn('MusicBrainz artist metadata lookup failed.', error);
-        result.country = musicBrainzArtist.country || '';
-      }
-    }
-
-    metadataCache[key] = result;
-    saveMetadataCache();
-    return result;
-  }
-
-  async function loadActMetadata(name) {
-    const curated = curatedMetadata[name];
-    if (curated) {
-      return {
-        countries: curated.country ? [curated.country] : [],
-        genres: curated.genres || []
-      };
-    }
-
+  function legacyMetadataForAct(name) {
     const profiles = cache[name]?.profiles || [];
-    if (!profiles.length) return {countries: [], genres: []};
-
     const countries = [];
     const genres = [];
+
     for (const profile of profiles) {
-      const profileMetadata = await loadProfileMetadata(profile);
-      if (profileMetadata.country) countries.push(profileMetadata.country);
-      genres.push(...(profileMetadata.genres || []));
+      const key = profile?.id || profile?.url || profile?.name;
+      const item = key ? legacyMetadata[key] : null;
+      if (!item) continue;
+      if (item.country) countries.push(item.country);
+      genres.push(...(Array.isArray(item.genres) ? item.genres : []));
     }
 
-    return {
-      countries: unique(countries),
-      genres: unique(genres).slice(0, 4)
-    };
+    return {countries: unique(countries), genres: unique(genres)};
+  }
+
+  function metadataForAct(name) {
+    const published = staticMetadata[name];
+    if (published) {
+      return {
+        countries: unique(published.countries || (published.country ? [published.country] : [])),
+        genres: unique(published.genres || [])
+      };
+    }
+    return legacyMetadataForAct(name);
   }
 
   const openArtistBase = openArtist;
-  openArtist = function openArtistWithCountryAndGenre(name) {
+  openArtist = function openArtistWithStaticCountryAndGenre(name) {
     openArtistBase(name);
     const entry = cache[name];
     technicalStatus.hidden = !['pending', 'not_found'].includes(entry?.status);
-    countryCode.textContent = '';
-    renderMetadataState('Cargando país y género…');
-
-    const requestId = ++activeMetadataRequest;
-    loadActMetadata(name)
-      .then(result => {
-        if (requestId !== activeMetadataRequest || activeArtist !== name) return;
-        renderMetadata(result);
-      })
-      .catch(error => {
-        console.warn('Artist metadata could not be loaded.', error);
-        if (requestId !== activeMetadataRequest || activeArtist !== name) return;
-        renderMetadata({countries: [], genres: []});
-      });
+    renderMetadata(metadataForAct(name));
   };
 })();

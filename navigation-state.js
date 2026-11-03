@@ -65,12 +65,14 @@
   $('#artistSearch').addEventListener('input', event => {
     if (activeScreen === 'lineup') lineupViewState.search = event.target.value;
   });
-})();
 
-// Carga los controles para pegar manualmente un perfil de Spotify.
-(() => {
-  const script = document.createElement('script');
-  script.src = './manual-spotify-profile.js';
-  script.async = false;
-  document.body.appendChild(script);
+  // Corregir un perfil vuelve a dibujar la ficha. Conservamos el origen
+  // anterior para que la flecha atrás restaure la misma posición de la lista.
+  document.addEventListener('click', event => {
+    if (!event.target.closest('#profileEditorSave')) return;
+    const returnScreen = previousScreen;
+    setTimeout(() => {
+      if (activeScreen === 'artist') previousScreen = returnScreen;
+    }, 0);
+  }, true);
 })();

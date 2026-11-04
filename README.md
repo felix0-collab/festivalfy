@@ -81,3 +81,10 @@ Los enlaces llevan una huella del catálogo. Si cambia el conjunto de actuacione
 ## Restauración del motor Spotify
 
 El módulo compartido de reproducción se restauró a la versión estable de referencia `85cba3e`, manteniendo la Radio limitada a 20 canciones. Se retiraron los experimentos posteriores de arranque compartido y renovación forzada de sesión. El resto de funcionalidades posteriores —incluida la imagen de Mi cartel— permanece separado e intacto.
+
+
+## Reproducción sin consultas de catálogo
+
+Para evitar que la cuota de Spotify Development Mode bloquee la reproducción, Festivalfy ya no necesita buscar canciones antes de empezar. Las fichas reproducen directamente el contexto oficial del artista (`spotify:artist:<id>`) y la Radio reproduce el contexto de la playlist verificada del festival. La Radio activa shuffle y limita localmente cada sesión a 20 canciones. De esta forma, pasar de Radio a artista reemplaza el contexto completo y no deja una cola de Radio pendiente.
+
+Los errores `429` conservan ahora el campo `reason` de Spotify, incluido `QUOTA_EXCEEDED`, para no confundir una limitación temporal de API con la ausencia de canciones del artista.

@@ -3288,8 +3288,13 @@ resolveAct = async function resolveActSafely(name, force = false) {
   let webPlayerGeneration = 0;
   const artistTrackUriCache = new Map();
   const FESTIVAL_RADIO_SOURCE_ID = '__festival_radio__';
+  const FESTIVAL_RADIO_PLAYLIST_URI = 'spotify:playlist:7lxl2eyUucpEXVs4PHbv6e';
   let currentFestivalRadioMix = null;
   let festivalRadioGeneration = 0;
+  let festivalRadioSessionLimit = 20;
+  let festivalRadioTracksPlayed = 0;
+  let festivalRadioLastTrackUri = '';
+  let festivalRadioSessionEnding = false;
 
   const style = document.createElement('style');
   style.textContent = `
@@ -3632,14 +3637,18 @@ resolveAct = async function resolveActSafely(name, force = false) {
   function currentRadioFestivalAct(track = latestPlaybackState?.track_window?.current_track) {
     if (!track || currentPlaybackProfileId !== FESTIVAL_RADIO_SOURCE_ID) return '';
 
-    const exactTrack=(currentFestivalRadioMix || []).find(item => item.uri === track.uri);
-    if (exactTrack?.act && allArtists().includes(exactTrack.act)) return exactTrack.act;
-
     const artistUris=new Set((track.artists || []).map(artist => artist?.uri).filter(Boolean));
-    const artistMatch=(currentFestivalRadioMix || []).find(
-      item => artistUris.has('spotify:artist:' + item.profileId)
-    );
-    return artistMatch?.act && allArtists().includes(artistMatch.act) ? artistMatch.act : '';
+    const acts=new Set(allArtists());
+
+    for (const [act,entry] of Object.entries(cache || {})) {
+      if (!acts.has(act) || entry?.status !== 'verified') continue;
+      const matches=(entry.profiles || []).some(
+        profile => profile?.id && artistUris.has('spotify:artist:' + profile.id)
+      );
+      if (matches) return act;
+    }
+
+    return '';
   }
 
   miniPlayer.querySelector('.festivalfy-mini-open').addEventListener('click', () => {
@@ -3789,6 +3798,40 @@ resolveAct = async function resolveActSafely(name, force = false) {
     appShell?.classList.toggle('mini-player-visible', visible);
   }
 
+  function resetFestivalRadioSession(limit = 20) {
+    festivalRadioSessionLimit=Math.max(1,Number(limit) || 20);
+    festivalRadioTracksPlayed=0;
+    festivalRadioLastTrackUri='';
+    festivalRadioSessionEnding=false;
+  }
+
+  async function monitorFestivalRadioSession(state) {
+    if (
+      currentPlaybackProfileId !== FESTIVAL_RADIO_SOURCE_ID
+      || festivalRadioSessionEnding
+      || !state
+    ) return;
+
+    const track=state.track_window?.current_track;
+    if (!track?.uri) return;
+
+    if (track.uri !== festivalRadioLastTrackUri) {
+      festivalRadioLastTrackUri=track.uri;
+      festivalRadioTracksPlayed+=1;
+    }
+
+    if (
+      festivalRadioTracksPlayed >= festivalRadioSessionLimit
+      && !state.paused
+      && state.duration > 0
+      && state.position >= Math.max(0,state.duration-450)
+    ) {
+      festivalRadioSessionEnding=true;
+      try { await webPlayer?.pause(); } catch {}
+      toast(`Fin de la mezcla · ${festivalRadioSessionLimit} canciones`);
+    }
+  }
+
   function paintPremiumState(state) {
     if (!state) {
       latestPlaybackState = null;
@@ -3812,7 +3855,10 @@ resolveAct = async function resolveActSafely(name, force = false) {
       if (!webPlayer) return;
       try {
         const state = await webPlayer.getCurrentState();
-        if (state) paintPremiumState(state);
+        if (state) {
+          paintPremiumState(state);
+          monitorFestivalRadioSession(state);
+        }
       } catch {}
     }, 700);
   }
@@ -3895,6 +3941,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
       playerInstance.addListener('player_state_changed', state => {
         if (generation !== webPlayerGeneration || webPlayer !== playerInstance) return;
         paintPremiumState(state);
+        monitorFestivalRadioSession(state);
         startProgressTicker();
       });
       playerInstance.addListener('initialization_error', ({message}) => rejectReady(new Error(message || 'No se pudo iniciar Spotify.')));
@@ -3972,6 +4019,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     if (!response.ok) {
       const error = new Error(payload.error?.message || `Spotify respondió con el código ${response.status}.`);
       error.status=response.status;
+      error.reason=payload.error?.reason || payload.reason || '';
       throw error;
     }
     return payload;
@@ -4058,25 +4106,20 @@ resolveAct = async function resolveActSafely(name, force = false) {
     try { webPlayer.activateElement(); } catch {}
 
     festivalRadioGeneration+=1;
+    festivalRadioSessionEnding=true;
+    currentFestivalRadioMix=null;
     currentPlaybackProfileId=profile.id;
     currentPlaybackArtistName=ui.sourceArtistName || profile.name || '';
     latestPlaybackState=null;
     activePremiumUi=ui;
     updateMiniVisibility();
-    ui.status.textContent='Buscando canciones del artista…';
+    ui.status.textContent='Iniciando canciones de este artista…';
     ui.main.disabled=true;
 
-    const trackUris=await findExactArtistTracks(profile);
-    if (!trackUris.length) {
-      const error=new Error('No encontramos canciones reproducibles verificadas para este perfil.');
-      error.code='NO_EXACT_ARTIST_TRACKS';
-      throw error;
-    }
-
-    ui.status.textContent='Iniciando reproducción completa…';
+    const contextUri=`spotify:artist:${profile.id}`;
 
     const playOnDevice=async () => {
-      if (!webDeviceId) await recoverWebPlayer('missing_device');
+      if (!webDeviceId) await recoverWebPlayer('artist_missing_device');
       try {
         await userPlaybackRequest(
           `/me/player/shuffle?state=false&device_id=${encodeURIComponent(webDeviceId)}`,
@@ -4085,7 +4128,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
       } catch {}
       return userPlaybackRequest(
         `/me/player/play?device_id=${encodeURIComponent(webDeviceId)}`,
-        {method:'PUT', body:{uris:trackUris}}
+        {method:'PUT',body:{context_uri:contextUri}}
       );
     };
 
@@ -4094,7 +4137,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
         method:'PUT',
         body:{device_ids:[webDeviceId],play:false}
       });
-      await new Promise(resolve => window.setTimeout(resolve,320));
+      await new Promise(resolve => window.setTimeout(resolve,260));
       await playOnDevice();
     };
 
@@ -4107,16 +4150,16 @@ resolveAct = async function resolveActSafely(name, force = false) {
           await transferAndPlay();
         } catch (transferError) {
           if (![404,502,503].includes(transferError.status)) throw transferError;
-          await recoverWebPlayer('stale_device');
+          await recoverWebPlayer('artist_stale_device');
           await transferAndPlay();
         }
       }
 
       ui.started=true;
-      ui.status.textContent='Spotify Premium · reproducción completa';
+      ui.status.textContent='Spotify Premium · reproducción del artista';
       window.setTimeout(async () => {
         try {
-          const state = await webPlayer?.getCurrentState();
+          const state=await webPlayer?.getCurrentState();
           if (state) paintPremiumState(state);
         } catch {}
       },180);
@@ -4228,8 +4271,8 @@ resolveAct = async function resolveActSafely(name, force = false) {
         ui.main.disabled=false;
         ui.main.textContent='▶';
         ui.main.setAttribute('aria-label','Reproducir');
-        if (error?.code === 'NO_EXACT_ARTIST_TRACKS') {
-          ui.status.textContent='No encontramos canciones verificadas de este artista';
+        if (error?.status === 429 && error?.reason === 'QUOTA_EXCEEDED') {
+          ui.status.textContent='Spotify ha alcanzado temporalmente su cuota · inténtalo más tarde';
           return;
         }
         ui.status.textContent='Spotify se ha desconectado · pulsa para reconectar';
@@ -4509,86 +4552,88 @@ resolveAct = async function resolveActSafely(name, force = false) {
       throw error;
     }
 
-    const generation=++festivalRadioGeneration;
+    ++festivalRadioGeneration;
+    resetFestivalRadioSession(targetTracks);
+    currentFestivalRadioMix=[{
+      uri:FESTIVAL_RADIO_PLAYLIST_URI,
+      profileId:'',
+      artistName:'Radio del festival',
+      act:''
+    }];
 
-    if (!newMix && currentFestivalRadioMix?.length) {
-      const mix=[...currentFestivalRadioMix];
-      onProgress?.({phase:'starting',found:1,target:mix.length});
-      await startFestivalRadioFirstTrack(mix[0]);
-      onProgress?.({phase:'playing',found:1,target:mix.length,artist:mix[0].artistName});
-      queueExistingFestivalRadioMix(mix,generation,onProgress).catch(error => {
-        console.warn('Festivalfy radio: no se pudo reconstruir toda la cola.',error);
+    if (!webPlayer || !webDeviceId) await ensureWebPlayer();
+    try { webPlayer.activateElement(); } catch {}
+
+    currentPlaybackProfileId=FESTIVAL_RADIO_SOURCE_ID;
+    currentPlaybackArtistName='Radio del festival';
+    activePremiumUi=null;
+    latestPlaybackState=null;
+    updateMiniVisibility();
+
+    onProgress?.({phase:'starting',found:0,target:festivalRadioSessionLimit});
+
+    const playOnDevice=async () => {
+      if (!webDeviceId) await recoverWebPlayer('festival_radio_missing_device');
+
+      // Shuffle is useful but non-critical: playback must still start if this
+      // command is temporarily rejected.
+      try {
+        await userPlaybackRequest(
+          `/me/player/shuffle?state=true&device_id=${encodeURIComponent(webDeviceId)}`,
+          {method:'PUT'}
+        );
+      } catch {}
+
+      return userPlaybackRequest(
+        `/me/player/play?device_id=${encodeURIComponent(webDeviceId)}`,
+        {method:'PUT',body:{context_uri:FESTIVAL_RADIO_PLAYLIST_URI}}
+      );
+    };
+
+    const transferAndPlay=async () => {
+      await userPlaybackRequest('/me/player',{
+        method:'PUT',
+        body:{device_ids:[webDeviceId],play:false}
       });
-      return {
-        trackCount:mix.length,
-        artistCount:new Set(mix.map(track => track.profileId)).size,
-        building:false
-      };
-    }
+      await new Promise(resolve => window.setTimeout(resolve,260));
+      await playOnDevice();
+    };
 
-    currentFestivalRadioMix=[];
-    const profiles=verifiedFestivalProfiles();
-    const usedUris=new Set();
-    let firstTrack=null;
-    let firstIndex=-1;
-
-    for (let index=0; index<profiles.length; index+=1) {
-      if (generation !== festivalRadioGeneration) throw new Error('La mezcla se ha sustituido por otra nueva.');
-      const profile=profiles[index];
-      onProgress?.({
-        phase:'first',
-        found:0,
-        target:targetTracks,
-        checked:index+1,
-        totalProfiles:profiles.length,
-        artist:profile.name
-      });
-
-      const uri=await findOneExactArtistTrack(profile,usedUris);
-      if (!uri) continue;
-
-      firstTrack={
-        uri,
-        profileId:profile.id,
-        artistName:profile.name,
-        act:profile.act
-      };
-      firstIndex=index;
-      break;
-    }
-
-    if (!firstTrack) throw new Error('No hemos encontrado una primera canción verificable del cartel.');
-
-    usedUris.add(firstTrack.uri);
-    currentFestivalRadioMix=[firstTrack];
-
-    onProgress?.({phase:'starting',found:1,target:targetTracks,artist:firstTrack.artistName});
-    await startFestivalRadioFirstTrack(firstTrack);
-    onProgress?.({phase:'playing',found:1,target:targetTracks,artist:firstTrack.artistName});
-
-    // Continue finding and queueing tracks without delaying the first playback.
-    continueFestivalRadioMix({
-      generation,
-      profiles,
-      startIndex:firstIndex+1,
-      usedUris,
-      targetTracks,
-      onProgress
-    }).catch(error => {
-      console.warn('Festivalfy radio: la mezcla progresiva se detuvo.',error);
-      if (generation === festivalRadioGeneration && currentPlaybackProfileId === FESTIVAL_RADIO_SOURCE_ID) {
-        onProgress?.({
-          phase:'partial',
-          found:currentFestivalRadioMix?.length || 1,
-          target:targetTracks
-        });
+    try {
+      try {
+        await playOnDevice();
+      } catch (error) {
+        if (error.status !== 404) throw error;
+        try {
+          await transferAndPlay();
+        } catch (transferError) {
+          if (![404,502,503].includes(transferError.status)) throw transferError;
+          await recoverWebPlayer('festival_radio_stale_device');
+          await transferAndPlay();
+        }
       }
+    } catch (error) {
+      currentFestivalRadioMix=null;
+      if (error?.status === 429 && error?.reason === 'QUOTA_EXCEEDED') {
+        const quotaError=new Error('Spotify ha alcanzado temporalmente la cuota de desarrollo. La reproducción volverá a estar disponible cuando se libere.');
+        quotaError.code='SPOTIFY_QUOTA';
+        throw quotaError;
+      }
+      throw error;
+    }
+
+    onProgress?.({
+      phase:'playing',
+      found:1,
+      target:festivalRadioSessionLimit,
+      artist:'Radio del festival'
     });
 
     return {
-      trackCount:1,
-      artistCount:1,
-      building:true
+      trackCount:festivalRadioSessionLimit,
+      artistCount:null,
+      building:false,
+      mode:'playlist'
     };
   }
 
@@ -4736,7 +4781,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
       <button class="festival-radio-play" id="festivalRadioPlay" type="button">▶ Escuchar mezcla</button>
       <button class="festival-radio-remix" id="festivalRadioRemix" type="button" hidden>↻ Nueva mezcla</button>
     </div>
-    <small class="festival-radio-dynamic-status" id="festivalRadioDynamicStatus">20 canciones · hasta 20 artistas verificados del cartel.</small>
+    <small class="festival-radio-dynamic-status" id="festivalRadioDynamicStatus">20 canciones por sesión · selección aleatoria del cartel.</small>
   `;
   fallbackLink.before(dynamic);
   fallbackLink.querySelector('span:nth-child(2)').textContent='Abrir playlist en Spotify';
@@ -4795,7 +4840,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     }
 
     setBusy(true,newMix);
-    setStatus(newMix ? 'Creando una nueva mezcla…' : 'Preparando canciones verificadas…');
+    setStatus(newMix ? 'Iniciando una nueva mezcla…' : 'Iniciando la Radio del festival…');
 
     try {
       const result=await player.playFestivalRadio({
@@ -4803,10 +4848,12 @@ resolveAct = async function resolveActSafely(name, force = false) {
         targetTracks:20,
         onProgress:progress => setStatus(progressLabel(progress))
       });
-      if (result.building) {
+      if (result.mode === 'playlist') {
+        setStatus(`Sonando · ${result.trackCount} canciones por sesión.`);
+      } else if (result.building) {
         setStatus('Ya está sonando · completando la mezcla en segundo plano…');
       } else {
-        setStatus(`${result.trackCount} canciones · ${result.artistCount} artistas del cartel.`);
+        setStatus(`${result.trackCount} canciones · ${result.artistCount || ''} artistas del cartel.`);
       }
       remixButton.hidden=false;
     } catch (error) {

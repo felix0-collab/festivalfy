@@ -2311,7 +2311,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
   const style = document.createElement('style');
   style.textContent = `
     .festival-hero {
-      height: clamp(250px, 68vw, 290px);
+      height: calc(clamp(200px, 54vw, 230px) + env(safe-area-inset-top));
       background:
         radial-gradient(circle at 72% 22%, rgba(226, 59, 188, .36), transparent 29%),
         radial-gradient(circle at 17% 29%, rgba(113, 50, 215, .52), transparent 39%),
@@ -6181,12 +6181,9 @@ resolveAct = async function resolveActSafely(name, force = false) {
     ctx.letterSpacing='0px';
 
     ctx.fillStyle='#ffffff';
-    ctx.font=`950 92px ${family}`;
-    ctx.fillText('MI CARTEL',margin,178);
-
-    ctx.fillStyle='#f0e9f3';
-    ctx.font=`900 34px ${family}`;
-    ctx.fillText('PRIMAVERA SOUND BARCELONA 2027',margin,230);
+    ctx.font=`950 76px ${family}`;
+    ctx.fillText('MI PRIMAVERA',margin,164);
+    ctx.fillText('SOUND 2027',margin,242);
 
     ctx.fillStyle='#8f8594';
     ctx.font=`800 24px ${family}`;
@@ -6219,11 +6216,6 @@ resolveAct = async function resolveActSafely(name, force = false) {
       ctx.fillStyle=meta.accent;
       ctx.font=`900 24px ${family}`;
       ctx.fillText(meta.label,margin,y+25);
-
-      ctx.fillStyle='#6f6574';
-      ctx.font=`800 20px ${family}`;
-      const count=`${artists.length}`;
-      ctx.fillText(count,1080-margin-ctx.measureText(count).width,y+25);
 
       y+=54;
       ctx.font=`800 ${fontSize}px ${family}`;
@@ -6266,15 +6258,6 @@ resolveAct = async function resolveActSafely(name, force = false) {
       ctx.lineTo(1080-margin,y-4);
       ctx.stroke();
     }
-
-    const footerY=canvas.height-54;
-    ctx.fillStyle='#746b79';
-    ctx.font=`800 18px ${family}`;
-    ctx.fillText('MI SELECCIÓN · FESTIVALFY',margin,footerY);
-
-    ctx.textAlign='right';
-    ctx.fillText('PRIMAVERA SOUND 2027',1080-margin,footerY);
-    ctx.textAlign='left';
 
     const blob=await new Promise((resolve,reject) => {
       canvas.toBlob(value => value ? resolve(value) : reject(new Error('No se pudo crear el PNG.')),'image/png');
@@ -6421,7 +6404,6 @@ resolveAct = async function resolveActSafely(name, force = false) {
     <header class="lineup-header">
       <button class="back-button" id="compareBack" type="button" aria-label="Volver a Mis amigos">‹</button>
       <div>
-        <small>Primavera Sound 2027</small>
         <h1 id="compareTitle">Comparar carteles</h1>
       </div>
     </header>
@@ -6554,7 +6536,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
       return;
     }
 
-    title.textContent = `${friend.name} y tú`;
+    title.textContent = `El Primavera Sound 2027 de ${friend.name}`;
 
     const theirs = friend.names;
     const mine = saved.list();
@@ -6565,18 +6547,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     const onlyTheirs = theirs.filter(name => !mineSet.has(name));
     const onlyMine = mine.filter(name => !theirsSet.has(name));
 
-    const summary = mine.length
-      ? `<div class="compare-summary">
-          <strong>${both.length}</strong>
-          <span>${both.length === 1 ? 'artista en común' : 'artistas en común'}. ${friend.name} tiene ${theirs.length} y tú ${mine.length}.</span>
-        </div>`
-      : `<div class="compare-summary">
-          <strong>${theirs.length}</strong>
-          <span>${friend.name} tiene ${theirs.length} ${theirs.length === 1 ? 'artista' : 'artistas'}. Todavía no has guardado ninguno.</span>
-        </div>`;
-
-    content.innerHTML = summary
-      + groupBlock('Coincidís', 'Los artistas que habéis guardado los dos.', both)
+    content.innerHTML = groupBlock('Coincidís', 'Los artistas que habéis guardado los dos.', both)
       + groupBlock(`Solo en el cartel de ${friend.name}`, 'Ideas para descubrir.', onlyTheirs)
       + groupBlock('Solo en el tuyo', 'Los que has guardado tú.', onlyMine);
 

@@ -3290,6 +3290,9 @@ resolveAct = async function resolveActSafely(name, force = false) {
   const FESTIVAL_RADIO_SOURCE_ID = '__festival_radio__';
   let currentFestivalRadioMix = null;
   let festivalRadioGeneration = 0;
+  const festivalRadioActByTrack = new Map();
+  const festivalRadioActByProfile = new Map();
+  const festivalRadioActByArtistName = new Map();
 
   const style = document.createElement('style');
   style.textContent = `
@@ -3629,29 +3632,91 @@ resolveAct = async function resolveActSafely(name, force = false) {
     fill:miniPlayer.querySelector('.festivalfy-mini-fill')
   };
 
-  function currentRadioFestivalAct(track = latestPlaybackState?.track_window?.current_track) {
-    if (!track || currentPlaybackProfileId !== FESTIVAL_RADIO_SOURCE_ID) return '';
-
-    const exactTrack=(currentFestivalRadioMix || []).find(item => item.uri === track.uri);
-    if (exactTrack?.act && allArtists().includes(exactTrack.act)) return exactTrack.act;
-
-    const artistUris=new Set((track.artists || []).map(artist => artist?.uri).filter(Boolean));
-    const artistMatch=(currentFestivalRadioMix || []).find(
-      item => artistUris.has('spotify:artist:' + item.profileId)
-    );
-    return artistMatch?.act && allArtists().includes(artistMatch.act) ? artistMatch.act : '';
+  function normalizeRadioArtistName(value) {
+    return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g,'')
+      .toLocaleLowerCase('es')
+      .replace(/[^a-z0-9]+/g,' ')
+      .trim();
   }
 
-  miniPlayer.querySelector('.festivalfy-mini-open').addEventListener('click', () => {
+  function registerFestivalRadioTrack(track) {
+    if (!track?.act || !allArtists().includes(track.act)) return;
+    if (track.uri) {
+      festivalRadioActByTrack.set(track.uri,track.act);
+      const trackId=String(track.uri).split(':').pop();
+      if (trackId) festivalRadioActByTrack.set(trackId,track.act);
+    }
+    if (track.profileId) festivalRadioActByProfile.set(track.profileId,track.act);
+    const artistKey=normalizeRadioArtistName(track.artistName);
+    if (artistKey) festivalRadioActByArtistName.set(artistKey,track.act);
+  }
+
+  function registerFestivalRadioMix(mix) {
+    for (const track of mix || []) registerFestivalRadioTrack(track);
+  }
+
+  function clearFestivalRadioMaps() {
+    festivalRadioActByTrack.clear();
+    festivalRadioActByProfile.clear();
+    festivalRadioActByArtistName.clear();
+  }
+
+  function currentRadioFestivalAct(track = latestPlaybackState?.track_window?.current_track) {
+    if (!track) return '';
+
+    const trackKeys=[
+      track.uri,
+      track.id,
+      track.linked_from?.uri,
+      track.linked_from?.id
+    ].filter(Boolean);
+    for (const key of trackKeys) {
+      const act=festivalRadioActByTrack.get(key);
+      if (act && allArtists().includes(act)) return act;
+    }
+
+    for (const artist of track.artists || []) {
+      const profileId=artist?.id || String(artist?.uri || '').split(':').pop();
+      if (profileId) {
+        const act=festivalRadioActByProfile.get(profileId);
+        if (act && allArtists().includes(act)) return act;
+      }
+
+      const artistKey=normalizeRadioArtistName(artist?.name);
+      if (artistKey) {
+        const act=festivalRadioActByArtistName.get(artistKey);
+        if (act && allArtists().includes(act)) return act;
+      }
+    }
+
+    const exactTrack=(currentFestivalRadioMix || []).find(item => (
+      item.uri === track.uri
+      || String(item.uri || '').split(':').pop() === track.id
+    ));
+    return exactTrack?.act && allArtists().includes(exactTrack.act) ? exactTrack.act : '';
+  }
+
+  const miniOpenButton=miniPlayer.querySelector('.festivalfy-mini-open');
+  miniOpenButton.addEventListener('click', () => {
+    const directAct=miniOpenButton.dataset.festivalAct || '';
+    if (directAct && allArtists().includes(directAct)) {
+      openArtist(directAct);
+      return;
+    }
+
     if (currentPlaybackProfileId === FESTIVAL_RADIO_SOURCE_ID) {
       const act=currentRadioFestivalAct();
       if (act) {
+        miniOpenButton.dataset.festivalAct=act;
         openArtist(act);
         return;
       }
       openFestival();
       return;
     }
+
     if (currentPlaybackArtistName && allArtists().includes(currentPlaybackArtistName)) {
       openArtist(currentPlaybackArtistName);
     }
@@ -3759,11 +3824,18 @@ resolveAct = async function resolveActSafely(name, force = false) {
     const miniOpen=miniPlayer.querySelector('.festivalfy-mini-open');
     if (miniOpen && currentPlaybackProfileId === FESTIVAL_RADIO_SOURCE_ID) {
       const act=currentRadioFestivalAct(track);
+      if (act) miniOpen.dataset.festivalAct=act;
+      else delete miniOpen.dataset.festivalAct;
       miniOpen.setAttribute(
         'aria-label',
         act ? `Abrir ficha de ${act}` : 'Abrir Radio del festival'
       );
     } else if (miniOpen) {
+      if (currentPlaybackArtistName && allArtists().includes(currentPlaybackArtistName)) {
+        miniOpen.dataset.festivalAct=currentPlaybackArtistName;
+      } else {
+        delete miniOpen.dataset.festivalAct;
+      }
       miniOpen.setAttribute('aria-label','Volver al artista que está sonando');
     }
 
@@ -4058,6 +4130,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     try { webPlayer.activateElement(); } catch {}
 
     festivalRadioGeneration+=1;
+    delete miniPlayer.querySelector('.festivalfy-mini-open')?.dataset.festivalAct;
     currentPlaybackProfileId=profile.id;
     currentPlaybackArtistName=ui.sourceArtistName || profile.name || '';
     latestPlaybackState=null;
@@ -4451,6 +4524,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
       usedUris.add(uri);
       currentFestivalRadioMix.push(track);
+      registerFestivalRadioTrack(track);
 
       onProgress?.({
         phase:'queued',
@@ -4513,6 +4587,8 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
     if (!newMix && currentFestivalRadioMix?.length) {
       const mix=[...currentFestivalRadioMix];
+      clearFestivalRadioMaps();
+      registerFestivalRadioMix(mix);
       onProgress?.({phase:'starting',found:1,target:mix.length});
       await startFestivalRadioFirstTrack(mix[0]);
       onProgress?.({phase:'playing',found:1,target:mix.length,artist:mix[0].artistName});
@@ -4527,6 +4603,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     }
 
     currentFestivalRadioMix=[];
+    clearFestivalRadioMaps();
     const profiles=verifiedFestivalProfiles();
     const usedUris=new Set();
     let firstTrack=null;
@@ -4561,6 +4638,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
     usedUris.add(firstTrack.uri);
     currentFestivalRadioMix=[firstTrack];
+    registerFestivalRadioTrack(firstTrack);
 
     onProgress?.({phase:'starting',found:1,target:targetTracks,artist:firstTrack.artistName});
     await startFestivalRadioFirstTrack(firstTrack);

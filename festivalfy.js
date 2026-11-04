@@ -134,7 +134,7 @@ function renderFestivalTab() {
       </button>`).join('')}</div>`;
     $all('.day-card').forEach(button => button.addEventListener('click', () => openLineup(button.dataset.day)));
   } else if (currentTab === 'all') {
-    content.innerHTML = `<div class="info-card"><strong>${allArtists().length} actuaciones anunciadas</strong><p>Explora el cartel completo y usa el buscador para localizar cualquier artista.</p><button class="spotify-primary" id="openAllArtists" type="button">Ver todo el cartel</button></div>`;
+    content.innerHTML = `<div class="info-card"><strong>${allArtists().length} actuaciones anunciadas</strong><p>Explora el cartel completo y usa el buscador para localizar cualquier artista.</p><button class="festival-primary" id="openAllArtists" type="button">Ver todo el cartel</button></div>`;
     $('#openAllArtists').addEventListener('click', () => openLineup('Todos'));
   } else {
     content.innerHTML = `<div class="info-card"><strong>Información oficial</strong><p>Festivalfy solo mostrará horarios y escenarios cuando Primavera Sound los confirme. La distribución por días procede del anuncio oficial del festival.</p><p><a href="https://www.primaverasound.com/es/news/primavera-sound-barcelona-sigue-uniendo-los-puntos-de-su-25-edicion-anunciando-la-distribucion-por-dias-de-su-cartel" target="_blank" rel="noopener">Consultar la fuente oficial ↗</a></p></div>`;
@@ -1733,18 +1733,59 @@ resolveAct = async function resolveActSafely(name, force = false) {
     }
     .saved-header {
       align-items:flex-end;
-      padding-bottom:18px;
+      padding-bottom:14px;
     }
-    .saved-header h1 { margin:5px 0 0; font-size:30px; letter-spacing:-1px; }
+    .saved-header .eyebrow { color:#d89cff; }
+    .saved-header h1 {
+      max-width:350px;
+      margin:6px 0 0;
+      font-size:31px;
+      line-height:1.02;
+      letter-spacing:-1.15px;
+    }
     .saved-content { padding-bottom:30px; }
-    .saved-section {
-      position:relative;
+    .saved-subtabs {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:5px;
+      margin:2px 0 22px;
+      padding:4px;
+      border:1px solid #302739;
+      border-radius:16px;
+      background:rgba(18,14,22,.82);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.025);
     }
-    .saved-section + .saved-section {
-      margin-top:28px;
-      padding-top:26px;
-      border-top:1px solid #2d2633;
+    .saved-subtab {
+      min-height:43px;
+      border:0;
+      border-radius:12px;
+      background:transparent;
+      color:#9e93a4;
+      cursor:pointer;
+      font-size:13px;
+      font-weight:900;
+      letter-spacing:-.1px;
     }
+    .saved-subtab.active {
+      background:linear-gradient(145deg,#33213c,#251a2d);
+      color:#f3ddff;
+      box-shadow:0 5px 16px rgba(0,0,0,.18),inset 0 0 0 1px rgba(215,160,244,.18);
+    }
+    .saved-friends-count {
+      display:inline-grid;
+      min-width:20px;
+      height:20px;
+      place-items:center;
+      margin-left:5px;
+      padding:0 5px;
+      border-radius:999px;
+      background:#543061;
+      color:#f6dcff;
+      font-size:10px;
+    }
+    .saved-friends-count[hidden] { display:none; }
+    .saved-section { position:relative; }
+    .saved-section[hidden] { display:none !important; }
     .saved-section-heading {
       display:flex;
       align-items:flex-end;
@@ -1767,12 +1808,13 @@ resolveAct = async function resolveActSafely(name, force = false) {
     }
     .saved-summary {
       margin:0 0 18px;
-      padding:14px 15px;
-      border:1px solid #342c3a;
-      border-radius:15px;
-      background:#15121a;
-      color:#b8aebe;
-      line-height:1.45;
+      padding:0;
+      border:0;
+      background:transparent;
+      color:#bdb2c2;
+      font-size:15px;
+      font-weight:750;
+      line-height:1.4;
     }
     .saved-day-group { margin:0 0 24px; }
     .saved-day-heading {
@@ -1859,18 +1901,18 @@ resolveAct = async function resolveActSafely(name, force = false) {
   savedScreen.innerHTML = `
     <header class="topbar saved-header">
       <div>
-        <span class="eyebrow">Primavera Sound 2027</span>
-        <h1>Mis carteles</h1>
+        <span class="eyebrow">Festivalfy</span>
+        <h1>Mi Primavera Sound 2027</h1>
       </div>
     </header>
     <div class="page-content saved-content">
-      <section class="saved-section saved-section-personal" aria-labelledby="savedPersonalTitle">
-        <div class="saved-section-heading">
-          <div>
-            <span class="saved-section-kicker">Tu selección</span>
-            <h2 id="savedPersonalTitle">Mi cartel</h2>
-          </div>
-        </div>
+      <nav class="saved-subtabs" aria-label="Secciones de Mi cartel">
+        <button class="saved-subtab active" type="button" data-saved-view="personal" aria-selected="true">Mi cartel</button>
+        <button class="saved-subtab" type="button" data-saved-view="friends" aria-selected="false">
+          Mis amigos <span class="saved-friends-count" id="savedFriendsCount" hidden></span>
+        </button>
+      </nav>
+      <section class="saved-section saved-section-personal" aria-label="Mi cartel">
         <div class="saved-summary" id="savedSummary"></div>
         <div id="savedArtistGroups"></div>
       </section>
@@ -1896,8 +1938,8 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
     const total = savedArtists.size;
     $('#savedSummary').textContent = total
-      ? `${total} ${total === 1 ? 'artista guardado' : 'artistas guardados'}, organizados por día.`
-      : 'Los artistas que marques con el corazón aparecerán aquí.';
+      ? `${total} ${total === 1 ? 'artista guardado' : 'artistas guardados'}`
+      : 'Aún no has guardado artistas.';
 
     $('#savedArtistGroups').innerHTML = groups.length ? groups.map(([day, artists]) => `
       <section class="saved-day-group">
@@ -1940,9 +1982,30 @@ resolveAct = async function resolveActSafely(name, force = false) {
     refreshVisibleHearts();
   }
 
-  function openSavedScreen() {
+  let savedView='personal';
+
+  function setSavedView(view='personal') {
+    savedView=view === 'friends' ? 'friends' : 'personal';
+    savedScreen.querySelectorAll('[data-saved-view]').forEach(button => {
+      const active=button.dataset.savedView === savedView;
+      button.classList.toggle('active',active);
+      button.setAttribute('aria-selected',String(active));
+    });
+
+    const personal=savedScreen.querySelector('.saved-section-personal');
+    const friends=savedScreen.querySelector('.saved-friends-section');
+    if (personal) personal.hidden=savedView !== 'personal';
+    if (friends) friends.hidden=savedView !== 'friends';
+  }
+
+  savedScreen.querySelectorAll('[data-saved-view]').forEach(button => {
+    button.addEventListener('click',() => setSavedView(button.dataset.savedView));
+  });
+
+  function openSavedScreen(view='personal') {
     renderSavedScreen();
     showScreen('saved');
+    setSavedView(view);
     $all('.nav-item').forEach(button => button.classList.remove('active'));
     $('#navSaved').classList.add('active');
   }
@@ -2052,6 +2115,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     list: () => [...savedArtists],
     has: name => savedArtists.has(name),
     openScreen: openSavedScreen,
+    setView: setSavedView,
     artistImage,
     artistSpotifyUrl
   };
@@ -5079,6 +5143,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     .festival-radio-play:disabled,
     .festival-radio-remix:disabled { cursor:wait; opacity:.58; }
     .festival-radio-dynamic-status {
+      display:none;
       min-height:17px;
       color:#9f95a5;
       font-size:11px;
@@ -5086,6 +5151,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     }
     .festival-radio-dynamic-status.error { color:#ff9ba7; }
     #festivalRadioCard .festival-radio-open {
+      display:none !important;
       margin-top:9px;
       border:1px solid #3a3041;
       background:#19151e;
@@ -5106,12 +5172,14 @@ resolveAct = async function resolveActSafely(name, force = false) {
   dynamic.innerHTML=`
     <div class="festival-radio-dynamic-actions">
       <button class="festival-radio-play" id="festivalRadioPlay" type="button">▶ Escuchar mezcla</button>
-      <button class="festival-radio-remix" id="festivalRadioRemix" type="button" hidden>↻ Nueva mezcla</button>
+      <button class="festival-radio-remix" id="festivalRadioRemix" type="button">↻ Nueva mezcla</button>
     </div>
-    <small class="festival-radio-dynamic-status" id="festivalRadioDynamicStatus">20 canciones por sesión · selección aleatoria del cartel.</small>
+    <small class="festival-radio-dynamic-status" id="festivalRadioDynamicStatus" aria-live="polite"></small>
   `;
   fallbackLink.before(dynamic);
-  fallbackLink.querySelector('span:nth-child(2)').textContent='Abrir playlist en Spotify';
+  fallbackLink.hidden=true;
+  fallbackLink.setAttribute('aria-hidden','true');
+  fallbackLink.tabIndex=-1;
 
   const playButton=dynamic.querySelector('#festivalRadioPlay');
   const remixButton=dynamic.querySelector('#festivalRadioRemix');
@@ -5548,6 +5616,26 @@ resolveAct = async function resolveActSafely(name, force = false) {
   const style = document.createElement('style');
   style.textContent = `
     .saved-friends-section { padding-bottom:4px; }
+    .saved-friends-hero { margin:0 0 18px; }
+    .saved-friends-hero > span {
+      display:block;
+      color:#b77add;
+      font-size:9px;
+      font-weight:950;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+    }
+    .saved-friends-hero h2 {
+      margin:5px 0 0;
+      font-size:23px;
+      letter-spacing:-.5px;
+    }
+    .saved-friends-hero p {
+      margin:7px 0 0;
+      color:#9f95a5;
+      font-size:13px;
+      line-height:1.5;
+    }
     .saved-friends-intro {
       margin:0 0 14px;
       color:#9f95a5;
@@ -5575,59 +5663,91 @@ resolveAct = async function resolveActSafely(name, force = false) {
       cursor:pointer;
     }
     .saved-share button:active { background:#221c28; }
-    .saved-share button.primary { border-color:#d7a0f4; color:#f6ecfc; }
+    .saved-share button.primary {
+      border-color:rgba(215,160,244,.34);
+      background:linear-gradient(145deg,#2b1b34,#211725);
+      color:#f6ecfc;
+    }
 
     .saved-poster-cta {
+      position:relative;
+      overflow:hidden;
       display:grid;
-      grid-template-columns:48px minmax(0,1fr) auto;
-      align-items:center;
-      gap:12px;
-      margin:14px 0 22px;
-      padding:14px;
-      border:1px solid rgba(215,160,244,.24);
-      border-radius:18px;
+      grid-template-columns:minmax(0,1fr) auto;
+      align-items:end;
+      gap:18px;
+      margin:12px 0 26px;
+      padding:20px;
+      border:1px solid rgba(215,160,244,.19);
+      border-radius:22px;
       background:
-        radial-gradient(circle at 88% 14%,rgba(215,160,244,.13),transparent 34%),
-        linear-gradient(145deg,#19131f,#121016 72%);
-      box-shadow:inset 0 1px 0 rgba(255,255,255,.025);
+        radial-gradient(circle at 92% -10%,rgba(195,91,255,.22),transparent 42%),
+        linear-gradient(135deg,#1f1328 0%,#16111d 52%,#100e14 100%);
+      box-shadow:0 14px 34px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.035);
+    }
+    .saved-poster-cta::before {
+      content:'FESTIVALFY / 2027';
+      position:absolute;
+      top:17px;
+      right:18px;
+      color:rgba(235,205,250,.28);
+      font-size:8px;
+      font-weight:950;
+      letter-spacing:.18em;
+    }
+    .saved-poster-cta::after {
+      content:'';
+      position:absolute;
+      width:145px;
+      height:145px;
+      right:-78px;
+      bottom:-92px;
+      border:18px solid rgba(215,160,244,.055);
+      border-radius:50%;
+      pointer-events:none;
     }
     .saved-poster-icon {
-      display:grid;
-      width:48px;
-      height:48px;
-      place-items:center;
-      border:1px solid rgba(215,160,244,.28);
-      border-radius:14px;
-      background:#24182b;
-      color:#e3b8f8;
-      font-size:21px;
-      font-weight:900;
+      display:block;
+      grid-column:1/-1;
+      width:auto;
+      height:auto;
+      color:#d9a1fa;
+      font-size:12px;
+      font-weight:950;
+      letter-spacing:.12em;
     }
     .saved-poster-copy { min-width:0; }
     .saved-poster-copy strong {
       display:block;
-      color:#f7f2f9;
-      font-size:14px;
-      font-weight:900;
+      max-width:230px;
+      color:#fff;
+      font-size:18px;
+      line-height:1.15;
+      font-weight:950;
+      letter-spacing:-.35px;
     }
     .saved-poster-copy span {
       display:block;
-      margin-top:4px;
-      color:#958a9b;
+      max-width:255px;
+      margin-top:7px;
+      color:#a89dac;
       font-size:11px;
       font-weight:700;
-      line-height:1.4;
+      line-height:1.45;
     }
     .saved-poster-button {
-      min-height:40px;
-      padding:9px 13px;
-      border:1px solid #d7a0f4;
+      position:relative;
+      z-index:1;
+      min-height:43px;
+      padding:10px 15px;
+      border:0;
       border-radius:999px;
-      background:#261b2d;
-      color:#f5e9fb;
+      background:linear-gradient(135deg,#d99aff,#a252e8);
+      box-shadow:0 8px 20px rgba(162,82,232,.24);
+      color:#201327;
       cursor:pointer;
       font-size:12px;
-      font-weight:900;
+      font-weight:950;
       white-space:nowrap;
     }
     .saved-poster-button:disabled { cursor:wait; opacity:.58; }
@@ -5724,13 +5844,11 @@ resolveAct = async function resolveActSafely(name, force = false) {
     }
     @media(max-width:420px) {
       .saved-poster-cta {
-        grid-template-columns:44px minmax(0,1fr);
+        grid-template-columns:minmax(0,1fr) auto;
+        gap:14px;
+        padding:18px;
       }
-      .saved-poster-icon { width:44px; height:44px; }
-      .saved-poster-button {
-        grid-column:1/-1;
-        width:100%;
-      }
+      .saved-poster-button { align-self:end; }
     }
 
     .friend-cartels {
@@ -5893,12 +6011,12 @@ resolveAct = async function resolveActSafely(name, force = false) {
   const posterCta=document.createElement('div');
   posterCta.className='saved-poster-cta';
   posterCta.innerHTML=`
-    <span class="saved-poster-icon" aria-hidden="true">▣</span>
+    <span class="saved-poster-icon" aria-hidden="true">TU PÓSTER</span>
     <span class="saved-poster-copy">
-      <strong>Tu cartel en una imagen</strong>
-      <span>Crea un póster vertical con tu selección para compartirlo o guardarlo.</span>
+      <strong>Convierte tu cartel en una imagen</strong>
+      <span>Una pieza vertical de Festivalfy lista para guardar o compartir.</span>
     </span>
-    <button class="saved-poster-button" type="button">Crear imagen</button>
+    <button class="saved-poster-button" type="button">Crear ↗</button>
   `;
   savedSummary?.after(posterCta);
 
@@ -6251,15 +6369,14 @@ resolveAct = async function resolveActSafely(name, force = false) {
   if (!friendsSection) {
     friendsSection = document.createElement('section');
     friendsSection.className = 'saved-section saved-friends-section';
-    friendsSection.setAttribute('aria-labelledby', 'savedFriendsTitle');
+    friendsSection.setAttribute('aria-label','Mis amigos');
+    friendsSection.hidden=true;
     friendsSection.innerHTML = `
-      <div class="saved-section-heading">
-        <div>
-          <span class="saved-section-kicker">Compartir y comparar</span>
-          <h2 id="savedFriendsTitle">Mis amigos</h2>
-        </div>
+      <div class="saved-friends-hero">
+        <span>Carteles compartidos</span>
+        <h2>Mis amigos</h2>
+        <p>Guarda los carteles que te envíen y descubre rápidamente con quién coincides.</p>
       </div>
-      <p class="saved-friends-intro">Comparte tu selección con tus amigos y guarda aquí sus carteles para ver qué artistas tenéis en común.</p>
     `;
     savedScreen.querySelector('.saved-content')?.appendChild(friendsSection);
   }
@@ -6273,6 +6390,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
   limitNote.textContent = `Puedes guardar hasta ${MAX_FRIENDS} carteles de amigos en este dispositivo.`;
 
   friendsSection.append(shareBar, friendsList, limitNote);
+  saved.setView?.('personal');
 
   shareButton.addEventListener('click', async () => {
     const names = saved.list();
@@ -6301,7 +6419,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
   compareScreen.setAttribute('aria-label', 'Comparar carteles');
   compareScreen.innerHTML = `
     <header class="lineup-header">
-      <button class="back-button" id="compareBack" type="button" aria-label="Volver a Mis carteles">‹</button>
+      <button class="back-button" id="compareBack" type="button" aria-label="Volver a Mis amigos">‹</button>
       <div>
         <small>Primavera Sound 2027</small>
         <h1 id="compareTitle">Comparar carteles</h1>
@@ -6313,10 +6431,16 @@ resolveAct = async function resolveActSafely(name, force = false) {
   bottomNav.before(compareScreen);
   screens.compare = compareScreen;
 
-  compareScreen.querySelector('#compareBack').addEventListener('click', () => saved.openScreen());
+  compareScreen.querySelector('#compareBack').addEventListener('click', () => saved.openScreen('friends'));
 
   function renderFriends() {
     if (!friendsList) return;
+
+    const friendsCount=savedScreen.querySelector('#savedFriendsCount');
+    if (friendsCount) {
+      friendsCount.textContent=String(friends.length);
+      friendsCount.hidden=!friends.length;
+    }
 
     if (!friends.length) {
       friendsList.innerHTML = `

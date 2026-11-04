@@ -421,3 +421,18 @@ button { -webkit-tap-highlight-color: transparent; }
     padding-top: 11px;
   }
 }
+
+
+/* Festivalfy content actions: purple; Spotify/playback keeps green. */
+.festival-primary {
+  width:100%;
+  border:0;
+  border-radius:999px;
+  padding:14px 17px;
+  background:linear-gradient(135deg,#cc62ff 0%,#9749ed 48%,#7040d8 100%);
+  box-shadow:0 9px 24px rgba(151,73,237,.22), inset 0 1px 0 rgba(255,255,255,.18);
+  color:#fff;
+  cursor:pointer;
+  font-weight:900;
+}
+.festival-primary:active { transform:translateY(1px); }

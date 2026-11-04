@@ -1695,8 +1695,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
   const style = document.createElement('style');
   style.textContent = `
     .artist-favorite,
-    .artist-detail-favorite,
-    .saved-artist-favorite {
+    .artist-detail-favorite {
       display:grid;
       place-items:center;
       flex:0 0 auto;
@@ -1712,11 +1711,9 @@ resolveAct = async function resolveActSafely(name, force = false) {
       transition:transform .16s ease, border-color .16s ease, color .16s ease, background .16s ease;
     }
     .artist-favorite:active,
-    .artist-detail-favorite:active,
-    .saved-artist-favorite:active { transform:scale(.9); }
+    .artist-detail-favorite:active { transform:scale(.9); }
     .artist-favorite.active,
-    .artist-detail-favorite.active,
-    .saved-artist-favorite.active {
+    .artist-detail-favorite.active {
       border-color:rgba(255,95,143,.48);
       background:rgba(255,95,143,.12);
       color:#ff6f9e;
@@ -1958,7 +1955,6 @@ resolveAct = async function resolveActSafely(name, force = false) {
                   <small>${profile ? escapeHtml(profile.name) : 'Abrir ficha del artista'}</small>
                 </span>
               </button>
-              <button class="saved-artist-favorite active" type="button" data-favorite-artist="${escapeHtml(name)}" aria-label="Quitar ${escapeHtml(name)} de mi cartel" aria-pressed="true">♥</button>
               <a class="spotify-link" href="${escapeHtml(artistSpotifyUrl(name))}" target="_blank" rel="noopener" aria-label="Abrir ${escapeHtml(name)} en Spotify">▶</a>
             </article>`;
           }).join('')}
@@ -1966,18 +1962,11 @@ resolveAct = async function resolveActSafely(name, force = false) {
       </section>`).join('') : `
       <div class="saved-empty">
         <span class="empty-heart">♡</span>
-        Todavía no has guardado artistas. Pulsa el corazón de cualquier actuación para crear tu cartel.
+        Todavía no has guardado artistas. Abre la ficha de un artista y pulsa su corazón para añadirlo a tu cartel.
       </div>`;
 
     document.querySelectorAll('[data-saved-open]').forEach(button => {
       button.addEventListener('click', () => openArtist(button.dataset.savedOpen));
-    });
-    document.querySelectorAll('#savedScreen [data-favorite-artist]').forEach(button => {
-      button.addEventListener('click', event => {
-        event.preventDefault();
-        event.stopPropagation();
-        toggleSavedArtist(button.dataset.favoriteArtist);
-      });
     });
     refreshVisibleHearts();
   }

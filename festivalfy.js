@@ -1725,6 +1725,34 @@ resolveAct = async function resolveActSafely(name, force = false) {
     }
     .saved-header h1 { margin:5px 0 0; font-size:30px; letter-spacing:-1px; }
     .saved-content { padding-bottom:30px; }
+    .saved-section {
+      position:relative;
+    }
+    .saved-section + .saved-section {
+      margin-top:28px;
+      padding-top:26px;
+      border-top:1px solid #2d2633;
+    }
+    .saved-section-heading {
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:12px;
+      margin:0 0 14px;
+    }
+    .saved-section-heading h2 {
+      margin:3px 0 0;
+      font-size:22px;
+      letter-spacing:-.45px;
+    }
+    .saved-section-kicker {
+      display:block;
+      color:#9d8fa4;
+      font-size:10px;
+      font-weight:900;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+    }
     .saved-summary {
       margin:0 0 18px;
       padding:14px 15px;
@@ -1820,12 +1848,20 @@ resolveAct = async function resolveActSafely(name, force = false) {
     <header class="topbar saved-header">
       <div>
         <span class="eyebrow">Primavera Sound 2027</span>
-        <h1>Mi cartel</h1>
+        <h1>Mis carteles</h1>
       </div>
     </header>
     <div class="page-content saved-content">
-      <div class="saved-summary" id="savedSummary"></div>
-      <div id="savedArtistGroups"></div>
+      <section class="saved-section saved-section-personal" aria-labelledby="savedPersonalTitle">
+        <div class="saved-section-heading">
+          <div>
+            <span class="saved-section-kicker">Tu selección</span>
+            <h2 id="savedPersonalTitle">Mi cartel</h2>
+          </div>
+        </div>
+        <div class="saved-summary" id="savedSummary"></div>
+        <div id="savedArtistGroups"></div>
+      </section>
     </div>`;
   bottomNav.before(savedScreen);
   screens.saved = savedScreen;
@@ -4038,11 +4074,20 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
   const style = document.createElement('style');
   style.textContent = `
+    .saved-friends-section {
+      padding-bottom:4px;
+    }
+    .saved-friends-intro {
+      margin:0 0 14px;
+      color:#9f95a5;
+      font-size:13px;
+      line-height:1.55;
+    }
     .saved-share {
       display:flex;
       flex-wrap:wrap;
       gap:10px;
-      margin:0 0 16px;
+      margin:0;
     }
     .saved-share button {
       display:inline-flex;
@@ -4144,7 +4189,21 @@ resolveAct = async function resolveActSafely(name, force = false) {
   compareButton.hidden = true;
 
   shareBar.append(shareButton, compareButton);
-  savedScreen.querySelector('.saved-content').prepend(shareBar);
+
+  const friendsSection = document.createElement('section');
+  friendsSection.className = 'saved-section saved-friends-section';
+  friendsSection.setAttribute('aria-labelledby', 'savedFriendsTitle');
+  friendsSection.innerHTML = `
+    <div class="saved-section-heading">
+      <div>
+        <span class="saved-section-kicker">Compartir y comparar</span>
+        <h2 id="savedFriendsTitle">Mi cartel con amigos</h2>
+      </div>
+    </div>
+    <p class="saved-friends-intro">Comparte tu selección con tus amigos y descubre qué artistas tenéis en común.</p>
+  `;
+  friendsSection.appendChild(shareBar);
+  savedScreen.querySelector('.saved-content').appendChild(friendsSection);
 
   shareButton.addEventListener('click', async () => {
     const names = saved.list();

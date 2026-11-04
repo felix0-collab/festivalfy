@@ -3293,6 +3293,9 @@ resolveAct = async function resolveActSafely(name, force = false) {
   const festivalRadioActByTrack = new Map();
   const festivalRadioActByProfile = new Map();
   const festivalRadioActByArtistName = new Map();
+  const festivalCatalogActsByProfile = new Map();
+  const festivalCatalogActsByArtistName = new Map();
+  const festivalRadioResolutionCache = new Map();
 
   const style = document.createElement('style');
   style.textContent = `
@@ -3641,6 +3644,58 @@ resolveAct = async function resolveActSafely(name, force = false) {
       .trim();
   }
 
+  function addCatalogAct(map,key,act) {
+    if (!key || !act || !allArtists().includes(act)) return;
+    if (!map.has(key)) map.set(key,new Set());
+    map.get(key).add(act);
+  }
+
+  function rebuildFestivalCatalogIndexes() {
+    festivalCatalogActsByProfile.clear();
+    festivalCatalogActsByArtistName.clear();
+
+    const acts=new Set(allArtists());
+    Object.entries(cache || {}).forEach(([act,entry]) => {
+      if (!acts.has(act) || entry?.status !== 'verified') return;
+      (entry.profiles || []).forEach(profile => {
+        if (!profile?.id) return;
+        addCatalogAct(festivalCatalogActsByProfile,profile.id,act);
+        const artistKey=normalizeRadioArtistName(profile.name);
+        if (artistKey) addCatalogAct(festivalCatalogActsByArtistName,artistKey,act);
+      });
+    });
+  }
+
+  function chooseFestivalAct(candidates,profileId='') {
+    if (!candidates?.size) return '';
+
+    if (profileId) {
+      const fromCurrentMix=(currentFestivalRadioMix || []).find(
+        item => item.profileId === profileId && candidates.has(item.act)
+      );
+      if (fromCurrentMix?.act) return fromCurrentMix.act;
+    }
+
+    return [...candidates].find(act => allArtists().includes(act)) || '';
+  }
+
+  function radioTrackKey(track) {
+    return track?.uri
+      || track?.id
+      || track?.linked_from?.uri
+      || track?.linked_from?.id
+      || '';
+  }
+
+  function spotifyTrackId(track) {
+    const raw=track?.id
+      || track?.uri
+      || track?.linked_from?.id
+      || track?.linked_from?.uri
+      || '';
+    return String(raw).split(':').pop();
+  }
+
   function registerFestivalRadioTrack(track) {
     if (!track?.act || !allArtists().includes(track.act)) return;
     if (track.uri) {
@@ -3661,6 +3716,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     festivalRadioActByTrack.clear();
     festivalRadioActByProfile.clear();
     festivalRadioActByArtistName.clear();
+    festivalRadioResolutionCache.clear();
   }
 
   function currentRadioFestivalAct(track = latestPlaybackState?.track_window?.current_track) {
@@ -3680,14 +3736,25 @@ resolveAct = async function resolveActSafely(name, force = false) {
     for (const artist of track.artists || []) {
       const profileId=artist?.id || String(artist?.uri || '').split(':').pop();
       if (profileId) {
-        const act=festivalRadioActByProfile.get(profileId);
-        if (act && allArtists().includes(act)) return act;
+        const directAct=festivalRadioActByProfile.get(profileId);
+        if (directAct && allArtists().includes(directAct)) return directAct;
+
+        const catalogAct=chooseFestivalAct(
+          festivalCatalogActsByProfile.get(profileId),
+          profileId
+        );
+        if (catalogAct) return catalogAct;
       }
 
       const artistKey=normalizeRadioArtistName(artist?.name);
       if (artistKey) {
-        const act=festivalRadioActByArtistName.get(artistKey);
-        if (act && allArtists().includes(act)) return act;
+        const directAct=festivalRadioActByArtistName.get(artistKey);
+        if (directAct && allArtists().includes(directAct)) return directAct;
+
+        const catalogAct=chooseFestivalAct(
+          festivalCatalogActsByArtistName.get(artistKey)
+        );
+        if (catalogAct) return catalogAct;
       }
     }
 
@@ -3698,8 +3765,59 @@ resolveAct = async function resolveActSafely(name, force = false) {
     return exactTrack?.act && allArtists().includes(exactTrack.act) ? exactTrack.act : '';
   }
 
+  async function resolveRadioFestivalAct(track = latestPlaybackState?.track_window?.current_track) {
+    const direct=currentRadioFestivalAct(track);
+    if (direct) return direct;
+
+    const key=radioTrackKey(track);
+    const trackId=spotifyTrackId(track);
+    if (!trackId) return '';
+
+    if (festivalRadioResolutionCache.has(key || trackId)) {
+      return festivalRadioResolutionCache.get(key || trackId);
+    }
+
+    const resolution=(async () => {
+      try {
+        const fullTrack=await userPlaybackRequest(`/tracks/${encodeURIComponent(trackId)}`);
+        const act=currentRadioFestivalAct(fullTrack);
+        if (act) {
+          const keys=[
+            key,
+            trackId,
+            fullTrack?.uri,
+            fullTrack?.id,
+            fullTrack?.linked_from?.uri,
+            fullTrack?.linked_from?.id
+          ].filter(Boolean);
+          for (const item of keys) festivalRadioActByTrack.set(item,act);
+          return act;
+        }
+      } catch (error) {
+        console.warn('Festivalfy radio: no se pudo resolver la canción actual.',trackId,error);
+      }
+      return '';
+    })();
+
+    festivalRadioResolutionCache.set(key || trackId,resolution);
+    return resolution;
+  }
+
+  function setMiniFestivalAct(act) {
+    if (act && allArtists().includes(act)) {
+      miniOpenButton.dataset.festivalAct=act;
+      miniOpenButton.setAttribute('aria-label',`Abrir ficha de ${act}`);
+      return;
+    }
+    delete miniOpenButton.dataset.festivalAct;
+    miniOpenButton.setAttribute('aria-label','Abrir Radio del festival');
+  }
+
   const miniOpenButton=miniPlayer.querySelector('.festivalfy-mini-open');
-  miniOpenButton.addEventListener('click', () => {
+
+  miniPlayer.addEventListener('click', async event => {
+    if (event.target.closest('.festivalfy-mini-control')) return;
+
     const directAct=miniOpenButton.dataset.festivalAct || '';
     if (directAct && allArtists().includes(directAct)) {
       openArtist(directAct);
@@ -3707,13 +3825,14 @@ resolveAct = async function resolveActSafely(name, force = false) {
     }
 
     if (currentPlaybackProfileId === FESTIVAL_RADIO_SOURCE_ID) {
-      const act=currentRadioFestivalAct();
+      const track=latestPlaybackState?.track_window?.current_track;
+      const act=await resolveRadioFestivalAct(track);
       if (act) {
-        miniOpenButton.dataset.festivalAct=act;
+        setMiniFestivalAct(act);
         openArtist(act);
         return;
       }
-      openFestival();
+      toast('No hemos podido vincular esta canción con una ficha del cartel');
       return;
     }
 
@@ -3721,6 +3840,9 @@ resolveAct = async function resolveActSafely(name, force = false) {
       openArtist(currentPlaybackArtistName);
     }
   });
+
+  rebuildFestivalCatalogIndexes();
+
   miniPlayer.querySelector('.mini-prev').addEventListener('click', async () => {
     if (!webPlayer) return;
     try { await webPlayer.previousTrack(); } catch {}
@@ -3823,13 +3945,16 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
     const miniOpen=miniPlayer.querySelector('.festivalfy-mini-open');
     if (miniOpen && currentPlaybackProfileId === FESTIVAL_RADIO_SOURCE_ID) {
-      const act=currentRadioFestivalAct(track);
-      if (act) miniOpen.dataset.festivalAct=act;
-      else delete miniOpen.dataset.festivalAct;
-      miniOpen.setAttribute(
-        'aria-label',
-        act ? `Abrir ficha de ${act}` : 'Abrir Radio del festival'
-      );
+      const syncAct=currentRadioFestivalAct(track);
+      setMiniFestivalAct(syncAct);
+
+      if (!syncAct) {
+        const expectedKey=radioTrackKey(track);
+        resolveRadioFestivalAct(track).then(act => {
+          const currentTrack=latestPlaybackState?.track_window?.current_track;
+          if (act && radioTrackKey(currentTrack) === expectedKey) setMiniFestivalAct(act);
+        }).catch(() => {});
+      }
     } else if (miniOpen) {
       if (currentPlaybackArtistName && allArtists().includes(currentPlaybackArtistName)) {
         miniOpen.dataset.festivalAct=currentPlaybackArtistName;
@@ -4343,6 +4468,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
   }
 
   function verifiedFestivalProfiles() {
+    rebuildFestivalCatalogIndexes();
     const acts=new Set(allArtists());
     const profiles=new Map();
     Object.entries(cache || {}).forEach(([act,entry]) => {

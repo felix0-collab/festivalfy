@@ -2990,3 +2990,113 @@ resolveAct = async function resolveActSafely(name, force = false) {
   }
 })();
 
+
+/* ===== artist-player.js ===== */
+'use strict';
+
+// Reproductor de Spotify dentro de la ficha del artista.
+// El iframe se carga solo cuando la persona lo pide, para no gastar datos
+// cada vez que se abre una ficha. No requiere conectar ninguna cuenta.
+(() => {
+  const profiles = $('#artistProfiles');
+  if (!profiles) return;
+
+  const style = document.createElement('style');
+  style.textContent = `
+    .artist-player { margin: 14px 0 4px; }
+    .artist-player-item + .artist-player-item { margin-top: 10px; }
+    .artist-player-label {
+      display: block;
+      margin: 0 0 7px;
+      color: #8f8594;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .03em;
+    }
+    .artist-player-load {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      width: 100%;
+      min-height: 48px;
+      padding: 13px 16px;
+      border: 1px solid #3a3041;
+      border-radius: 14px;
+      background: #19151e;
+      color: #e9e2ec;
+      font-size: 14px;
+      font-weight: 850;
+      cursor: pointer;
+    }
+    .artist-player-load:active { background: #221c28; }
+    .artist-player-load span:first-child { color: #1ed760; font-size: 16px; }
+    .artist-player-load small {
+      display: block;
+      margin-top: 2px;
+      color: #8f8594;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .artist-player iframe {
+      display: block;
+      width: 100%;
+      height: 152px;
+      border: 0;
+      border-radius: 14px;
+    }
+  `;
+  document.head.appendChild(style);
+
+  const player = document.createElement('div');
+  player.id = 'artistPlayer';
+  player.className = 'artist-player';
+  profiles.after(player);
+
+  function embedUrl(id) {
+    return `https://open.spotify.com/embed/artist/${encodeURIComponent(id)}?utm_source=generator`;
+  }
+
+  function loadEmbed(container, profile) {
+    const frame = document.createElement('iframe');
+    frame.src = embedUrl(profile.id);
+    frame.loading = 'lazy';
+    frame.allow = 'clipboard-write; encrypted-media; fullscreen; picture-in-picture';
+    frame.setAttribute('title', `Reproductor de Spotify de ${profile.name || 'el artista'}`);
+    container.replaceChildren(frame);
+  }
+
+  function renderPlayer(name) {
+    const entry = cache[name];
+    const list = (entry?.profiles || []).filter(profile => profile && profile.id).slice(0, 3);
+    player.replaceChildren();
+    if (!list.length) return;
+
+    for (const profile of list) {
+      const item = document.createElement('div');
+      item.className = 'artist-player-item';
+
+      if (list.length > 1) {
+        const label = document.createElement('span');
+        label.className = 'artist-player-label';
+        label.textContent = profile.name || '';
+        item.appendChild(label);
+      }
+
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'artist-player-load';
+      button.innerHTML = `<span aria-hidden="true">▶</span><span>Escuchar aquí<small>Carga el reproductor de Spotify</small></span>`;
+      button.addEventListener('click', () => loadEmbed(item, profile));
+      item.appendChild(button);
+
+      player.appendChild(item);
+    }
+  }
+
+  const openArtistBase = openArtist;
+  openArtist = function openArtistWithPlayer(artistName) {
+    openArtistBase(artistName);
+    renderPlayer(artistName);
+  };
+})();

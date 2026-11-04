@@ -7,7 +7,7 @@ Web estática (sin servidor) para descubrir los artistas de festivales y escucha
 - **Datos publicados:** `published-spotify-data-1..4.js` contienen las asociaciones artista → perfil de Spotify revisadas (IDs, nombres, URLs e imágenes). Son el catálogo que ven todos los visitantes.
 - **Catálogo de país y géneros:** `artist-metadata-static.js`, texto estático, sin consultas externas.
 - **Cartel:** la estructura de días y actuaciones está dentro de `festivalfy.js` (`FESTIVAL.days`).
-- **Código de la aplicación:** `festivalfy.js`. Es un único fichero con todas las funciones: navegación, cartel, ficha del artista, Mi cartel (selecciones guardadas en el navegador), Radio del festival (actualiza una playlist pública de Spotify con una mezcla de artistas verificados), conexión con Spotify y modo administrador. Las secciones están marcadas con comentarios `===== nombre.js =====` según su origen.
+- **Código de la aplicación:** `festivalfy.js`. Es un único fichero con todas las funciones: navegación, cartel, ficha del artista, reproductor de Spotify incrustado, Mi cartel (selecciones guardadas en el navegador), Radio del festival (actualiza una playlist pública de Spotify con una mezcla de artistas verificados), conexión con Spotify y modo administrador. Las secciones están marcadas con comentarios `===== nombre.js =====` según su origen.
 - **Conexión con Spotify:** dentro de `festivalfy.js` y en `callback/index.html`, con Authorization Code + PKCE. El Client ID es público por diseño; no hay Client Secret en el proyecto.
 
 ## Modo administrador: importante
@@ -33,6 +33,14 @@ python3 -m http.server 8000
 ```
 
 Y abre `http://localhost:8000`.
+
+## Reproductor en la ficha del artista
+
+Cada ficha muestra un botón *Escuchar aquí*. Al pulsarlo se carga el reproductor incrustado de Spotify (`open.spotify.com/embed/artist/<id>`), que permite escuchar una muestra sin salir de Festivalfy y sin conectar ninguna cuenta.
+
+El reproductor se carga solo al pulsar el botón, nunca al abrir la ficha, para no gastar datos de más. Al volver a entrar en la ficha vuelve a aparecer el botón. En las actuaciones b2b o colectivas aparece un reproductor por cada perfil, con el nombre encima.
+
+La reproducción completa depende de Spotify: sin sesión iniciada en el navegador suele sonar solo una previsualización corta.
 
 ## Pendiente
 

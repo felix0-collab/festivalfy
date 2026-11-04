@@ -3778,3 +3778,185 @@ resolveAct = async function resolveActSafely(name, force = false) {
   };
 })();
 
+/* ===== artist-filters.js ===== */
+'use strict';
+(function artistFiltersInstaller() {
+  const searchBox = $('#artistSearch')?.closest('.search-box');
+  if (!searchBox) return;
+
+  const metadata = window.FESTIVALFY_ARTIST_METADATA || {};
+  const GENRE_FAMILIES = {
+    'Electrónica': ['electronic','techno','house','ambient','breakbeat','electro','bass','club','trance','downtempo','idm','drum and bass','jungle','garage','dubstep','dub','rave','acid','minimal','leftfield','edm','hyperpop','indietronica','synth','eurodance','hard'],
+    'Rock': ['rock','punk','shoegaze','metal','grunge','emo','noise','slacker'],
+    'Pop': ['pop'],
+    'Hip hop y R&B': ['hip hop','rap','trap','r&b','drill','grime','soul','funk'],
+    'Latino y global': ['reggaeton','dancehall','latin','cumbia','flamenco','salsa','afro','reggae','bolero','corrido','samba','baile'],
+    'Folk y cantautor': ['folk','singer-songwriter','country','americana','acoustic'],
+    'Jazz y experimental': ['jazz','experimental','drone','avant','classical','chamber','spoken','sound art','modern']
+  };
+  const COUNTRY_NAMES = {
+    US:'Estados Unidos',GB:'Reino Unido',ES:'España',CA:'Canadá',DE:'Alemania',IE:'Irlanda',FR:'Francia',
+    AU:'Australia',VE:'Venezuela',NL:'Países Bajos',SE:'Suecia',AR:'Argentina',GT:'Guatemala',PT:'Portugal',
+    CL:'Chile',CO:'Colombia',KR:'Corea del Sur',ET:'Etiopía',SD:'Sudán',BR:'Brasil',NO:'Noruega',NG:'Nigeria',
+    CM:'Camerún',FI:'Finlandia',MX:'México',IT:'Italia',JP:'Japón',BE:'Bélgica',DK:'Dinamarca',CH:'Suiza',
+    IS:'Islandia',NZ:'Nueva Zelanda',ZA:'Sudáfrica',PL:'Polonia',JM:'Jamaica'
+  };
+
+  const selectedGenres = new Set();
+  const selectedCountries = new Set();
+  const familyCache = new Map();
+  let open = false;
+
+  function familiesFor(name) {
+    if (familyCache.has(name)) return familyCache.get(name);
+    const genres = (metadata[name]?.genres || []).map(v => String(v).toLowerCase());
+    const found = new Set();
+    for (const genre of genres) {
+      for (const [family, words] of Object.entries(GENRE_FAMILIES)) {
+        if (words.some(word => genre.includes(word))) found.add(family);
+      }
+    }
+    familyCache.set(name, found);
+    return found;
+  }
+
+  function countriesFor(name) {
+    return (metadata[name]?.countries || []).map(v => String(v).toUpperCase());
+  }
+
+  function matches(name) {
+    if (selectedGenres.size && ![...selectedGenres].some(g => familiesFor(name).has(g))) return false;
+    if (selectedCountries.size && ![...selectedCountries].some(c => countriesFor(name).includes(c))) return false;
+    return true;
+  }
+
+  const style = document.createElement('style');
+  style.textContent = `
+    .filter-bar{display:flex;align-items:center;gap:10px;margin:10px 0 0}
+    .filter-toggle{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:9px 14px;border:1px solid #3a3041;border-radius:999px;background:#19151e;color:#e9e2ec;font-size:13px;font-weight:850;cursor:pointer}
+    .filter-toggle.has-filters{border-color:#d7a0f4;color:#f2e4fb}
+    .filter-toggle-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#d7a0f4;color:#1a1320;font-size:11px;font-weight:900}
+    .filter-clear{border:0;background:none;color:#8f8594;font-size:13px;font-weight:800;cursor:pointer;padding:9px 2px;min-height:40px}
+    .filter-panel{margin:12px 0 0;padding:14px;border:1px solid #2e2635;border-radius:16px;background:#151119}
+    .filter-panel[hidden]{display:none}.filter-group+.filter-group{margin-top:16px}
+    .filter-group-title{display:block;margin:0 0 9px;color:#8f8594;font-size:12px;font-weight:850;letter-spacing:.04em;text-transform:uppercase}
+    .filter-chips{display:flex;flex-wrap:wrap;gap:8px}
+    .filter-chip{min-height:36px;padding:8px 12px;border:1px solid #3a3041;border-radius:999px;background:#19151e;color:#d8cddd;font-size:12px;font-weight:800;cursor:pointer}
+    .filter-chip[aria-pressed="true"]{border-color:#d7a0f4;background:#2a1f33;color:#f6ecfc}
+    .filter-chip small{color:#8f8594;font-weight:700}.filter-chip[aria-pressed="true"] small{color:#cfa9e4}
+  `;
+  document.head.appendChild(style);
+
+  const bar = document.createElement('div');
+  bar.className = 'filter-bar';
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'filter-toggle';
+  toggle.setAttribute('aria-expanded','false');
+  const clear = document.createElement('button');
+  clear.type = 'button';
+  clear.className = 'filter-clear';
+  clear.textContent = 'Quitar filtros';
+  clear.hidden = true;
+  bar.append(toggle, clear);
+
+  const panel = document.createElement('div');
+  panel.className = 'filter-panel';
+  panel.hidden = true;
+  searchBox.after(bar);
+  bar.after(panel);
+
+  function dayArtists() {
+    return activeDay === 'Todos' ? allArtists() : (FESTIVAL.days[activeDay] || []);
+  }
+
+  function group(title, options, selected, onToggle) {
+    const section = document.createElement('div');
+    section.className = 'filter-group';
+    const heading = document.createElement('span');
+    heading.className = 'filter-group-title';
+    heading.textContent = title;
+    const chips = document.createElement('div');
+    chips.className = 'filter-chips';
+    for (const option of options) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'filter-chip';
+      chip.setAttribute('aria-pressed', selected.has(option.value) ? 'true' : 'false');
+      chip.innerHTML = `${escapeHtml(option.label)} <small>${option.count}</small>`;
+      chip.addEventListener('click', () => onToggle(option.value));
+      chips.appendChild(chip);
+    }
+    section.append(heading, chips);
+    return section;
+  }
+
+  function renderPanel() {
+    const genreCounts = new Map(Object.keys(GENRE_FAMILIES).map(g => [g,0]));
+    const countryCounts = new Map();
+    for (const name of dayArtists()) {
+      for (const family of familiesFor(name)) genreCounts.set(family,(genreCounts.get(family)||0)+1);
+      for (const code of new Set(countriesFor(name))) countryCounts.set(code,(countryCounts.get(code)||0)+1);
+    }
+
+    const genres = [...genreCounts].filter(([,n]) => n>0).sort((a,b)=>b[1]-a[1]).map(([value,count])=>({value,label:value,count}));
+    const countries = [...countryCounts].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([value,count])=>({
+      value,
+      label: COUNTRY_NAMES[value] ? `${COUNTRY_NAMES[value]} (${value})` : value,
+      count
+    }));
+
+    panel.replaceChildren(
+      group('Género', genres, selectedGenres, value => {
+        selectedGenres.has(value) ? selectedGenres.delete(value) : selectedGenres.add(value);
+        renderArtists();
+      }),
+      group('País', countries, selectedCountries, value => {
+        selectedCountries.has(value) ? selectedCountries.delete(value) : selectedCountries.add(value);
+        renderArtists();
+      })
+    );
+  }
+
+  function renderBar() {
+    const active = selectedGenres.size + selectedCountries.size;
+    toggle.innerHTML = active ? `Filtros <span class="filter-toggle-count">${active}</span>` : 'Filtros';
+    toggle.classList.toggle('has-filters', active > 0);
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    clear.hidden = active === 0;
+    panel.hidden = !open;
+    if (open) renderPanel();
+  }
+
+  toggle.addEventListener('click', () => { open = !open; renderBar(); });
+  clear.addEventListener('click', () => {
+    selectedGenres.clear();
+    selectedCountries.clear();
+    renderArtists();
+  });
+
+  const visibleBase = getVisibleArtists;
+  getVisibleArtists = function getVisibleArtistsWithFilters() {
+    return visibleBase().filter(matches);
+  };
+
+  const renderBase = renderArtists;
+  renderArtists = function renderArtistsWithFilters() {
+    renderBase();
+    renderBar();
+    const empty = $('#artistList .empty-state');
+    if (empty && (selectedGenres.size || selectedCountries.size)) {
+      empty.textContent = 'Ningún artista de este día coincide con los filtros.';
+    }
+  };
+
+  const screenBase = showScreen;
+  showScreen = function showScreenResettingFilters(name) {
+    if (name !== 'lineup' && name !== 'artist') {
+      selectedGenres.clear();
+      selectedCountries.clear();
+      open = false;
+    }
+    return screenBase(name);
+  };
+})();

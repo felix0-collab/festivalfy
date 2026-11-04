@@ -52,9 +52,11 @@ Los géneros del catálogo se agrupan en siete familias definidas en `GENRE_FAMI
 
 ## Radio del festival dinámica
 
-La acción principal de **Radio del festival** crea dentro de Festivalfy una mezcla de hasta 50 canciones de perfiles de Spotify verificados del cartel. Antes de aceptar una canción, el código comprueba que el ID del artista de la canción coincide exactamente con el perfil publicado. La mezcla intenta usar un artista distinto por canción antes de repetir.
+La acción principal de **Radio del festival** crea dentro de Festivalfy una mezcla de hasta 20 canciones de perfiles de Spotify verificados del cartel. Antes de aceptar una canción, el código comprueba que el ID del artista de la canción coincide exactamente con el perfil publicado. La mezcla intenta usar un artista distinto por canción antes de repetir.
 
 La generación es progresiva: en cuanto se encuentra la primera canción válida, Festivalfy empieza a reproducirla y continúa buscando y añadiendo el resto mediante la cola de Spotify. Así no es necesario esperar a tener las 50 canciones antes de escuchar. Si el usuario inicia manualmente otro artista o genera una nueva mezcla, la generación anterior se cancela para no contaminar la nueva reproducción.
+
+La primera canción se busca en paralelo entre pequeños grupos de perfiles verificados para reducir el tiempo de arranque. Solo si esa búsqueda rápida no da resultado se usa el recorrido más lento por álbumes.
 
 Las canciones verificadas encontradas se conservan en memoria durante la sesión para acelerar las siguientes mezclas. El Web Playback SDK se prepara en segundo plano y el toque sobre *Escuchar mezcla* activa el elemento de reproducción de forma síncrona antes de buscar canciones, para respetar las restricciones de autoplay de Safari/iOS. Al tocar el mini reproductor mientras suena la Radio, Festivalfy usa mapas directos creados junto con la propia mezcla y un índice global de todos los perfiles verificados del cartel. Si el Web Playback SDK no aporta suficientes datos, consulta una sola vez la canción actual por su ID en la Web API, cruza sus artistas con ese índice y guarda el resultado en caché. Cada cambio de canción deja además la ficha resuelta guardada en el botón del mini reproductor, desde donde puede guardarse en *Mi cartel*. *Nueva mezcla* vuelve a elegir artistas/canciones. La playlist pública existente sigue disponible como alternativa mediante *Abrir playlist en Spotify*.
 

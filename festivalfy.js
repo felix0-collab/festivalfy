@@ -3268,6 +3268,10 @@ resolveAct = async function resolveActSafely(name, force = false) {
   let webDeviceId = '';
   let activePremiumUi = null;
   let progressTimer = null;
+  let latestPlaybackState = null;
+  let currentPlaybackProfileId = '';
+  let currentPlaybackArtistName = '';
+  let miniUi = null;
 
   const style = document.createElement('style');
   style.textContent = `
@@ -3449,6 +3453,123 @@ resolveAct = async function resolveActSafely(name, force = false) {
       text-overflow:ellipsis;
       white-space:nowrap;
     }
+
+    .festivalfy-mini-player {
+      position:fixed;
+      z-index:24;
+      left:50%;
+      bottom:calc(80px + env(safe-area-inset-bottom));
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      align-items:center;
+      gap:8px;
+      width:min(calc(100% - 18px), 412px);
+      min-height:56px;
+      transform:translateX(-50%);
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,.09);
+      border-radius:15px;
+      padding:7px 8px 8px;
+      background:rgba(20,17,23,.96);
+      box-shadow:0 10px 28px rgba(0,0,0,.42);
+      backdrop-filter:blur(18px);
+    }
+    .festivalfy-mini-player[hidden] { display:none; }
+    .festivalfy-mini-open {
+      display:grid;
+      grid-template-columns:40px minmax(0,1fr);
+      align-items:center;
+      gap:9px;
+      min-width:0;
+      border:0;
+      padding:0;
+      background:transparent;
+      color:#fff;
+      cursor:pointer;
+      text-align:left;
+    }
+    .festivalfy-mini-cover {
+      width:40px;
+      height:40px;
+      overflow:hidden;
+      border-radius:7px;
+      background:#2a2230;
+    }
+    .festivalfy-mini-cover img {
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+    .festivalfy-mini-copy {
+      min-width:0;
+    }
+    .festivalfy-mini-title,
+    .festivalfy-mini-artist {
+      display:block;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .festivalfy-mini-title {
+      font-size:12px;
+      font-weight:900;
+      line-height:1.25;
+    }
+    .festivalfy-mini-artist {
+      margin-top:3px;
+      color:#928a97;
+      font-size:10px;
+      font-weight:700;
+    }
+    .festivalfy-mini-controls {
+      display:flex;
+      align-items:center;
+      gap:2px;
+    }
+    .festivalfy-mini-control {
+      display:grid;
+      place-items:center;
+      width:30px;
+      height:34px;
+      border:0;
+      border-radius:999px;
+      background:transparent;
+      color:#c8becd;
+      cursor:pointer;
+      font-size:14px;
+      font-weight:900;
+    }
+    .festivalfy-mini-control.main {
+      width:36px;
+      height:36px;
+      background:#eee8f1;
+      color:#161219;
+      font-size:14px;
+    }
+    .festivalfy-mini-progress {
+      position:absolute;
+      right:9px;
+      bottom:0;
+      left:9px;
+      height:2px;
+      overflow:hidden;
+      border-radius:999px;
+      background:#413946;
+    }
+    .festivalfy-mini-fill {
+      display:block;
+      width:0;
+      height:100%;
+      border-radius:inherit;
+      background:#d7a0f4;
+      transition:width .3s linear;
+    }
+    .app-shell.mini-player-visible {
+      padding-bottom:calc(142px + env(safe-area-inset-bottom));
+    }
+    .app-shell.mini-player-visible .toast {
+      bottom:calc(151px + env(safe-area-inset-bottom));
+    }
   `;
   document.head.appendChild(style);
 
@@ -3456,6 +3577,60 @@ resolveAct = async function resolveActSafely(name, force = false) {
   playerRoot.id = 'artistPlayer';
   playerRoot.className = 'artist-player';
   profiles.after(playerRoot);
+
+  const appShell = document.querySelector('.app-shell');
+  const bottomNav = document.querySelector('.bottom-nav');
+  const miniPlayer = document.createElement('aside');
+  miniPlayer.id = 'festivalfyMiniPlayer';
+  miniPlayer.className = 'festivalfy-mini-player';
+  miniPlayer.hidden = true;
+  miniPlayer.setAttribute('aria-label','Reproductor actual');
+  miniPlayer.innerHTML = `
+    <button class="festivalfy-mini-open" type="button" aria-label="Volver al artista que está sonando">
+      <span class="festivalfy-mini-cover"></span>
+      <span class="festivalfy-mini-copy">
+        <strong class="festivalfy-mini-title">Spotify</strong>
+        <small class="festivalfy-mini-artist">Reproducción en Festivalfy</small>
+      </span>
+    </button>
+    <span class="festivalfy-mini-controls">
+      <button class="festivalfy-mini-control mini-prev" type="button" aria-label="Anterior">‹‹</button>
+      <button class="festivalfy-mini-control main mini-main" type="button" aria-label="Pausar">Ⅱ</button>
+      <button class="festivalfy-mini-control mini-next" type="button" aria-label="Siguiente">››</button>
+    </span>
+    <span class="festivalfy-mini-progress"><span class="festivalfy-mini-fill"></span></span>
+  `;
+  if (bottomNav) bottomNav.before(miniPlayer);
+  else appShell?.appendChild(miniPlayer);
+
+  miniUi = {
+    cover:miniPlayer.querySelector('.festivalfy-mini-cover'),
+    title:miniPlayer.querySelector('.festivalfy-mini-title'),
+    artist:miniPlayer.querySelector('.festivalfy-mini-artist'),
+    main:miniPlayer.querySelector('.mini-main'),
+    fill:miniPlayer.querySelector('.festivalfy-mini-fill')
+  };
+
+  miniPlayer.querySelector('.festivalfy-mini-open').addEventListener('click', () => {
+    if (currentPlaybackArtistName && allArtists().includes(currentPlaybackArtistName)) {
+      openArtist(currentPlaybackArtistName);
+    }
+  });
+  miniPlayer.querySelector('.mini-prev').addEventListener('click', async () => {
+    if (!webPlayer) return;
+    try { await webPlayer.previousTrack(); } catch {}
+  });
+  miniUi.main.addEventListener('click', async () => {
+    if (!webPlayer) return;
+    try {
+      try { webPlayer.activateElement(); } catch {}
+      await webPlayer.togglePlay();
+    } catch {}
+  });
+  miniPlayer.querySelector('.mini-next').addEventListener('click', async () => {
+    if (!webPlayer) return;
+    try { await webPlayer.nextTrack(); } catch {}
+  });
 
   function embedUrl(id) {
     return `https://open.spotify.com/embed/artist/${encodeURIComponent(id)}?utm_source=generator`;
@@ -3504,12 +3679,11 @@ resolveAct = async function resolveActSafely(name, force = false) {
     return sdkLoadPromise;
   }
 
-  function paintPremiumState(state) {
-    if (!activePremiumUi || !state) return;
+  function paintPremiumUi(ui, state) {
+    if (!ui || !state) return;
     const track = state.track_window?.current_track;
     if (!track) return;
 
-    const ui = activePremiumUi;
     const artistNames = (track.artists || []).map(artist => artist.name).filter(Boolean).join(', ');
     const cover = track.album?.images?.[0]?.url || ui.fallbackImage || '';
 
@@ -3530,10 +3704,55 @@ resolveAct = async function resolveActSafely(name, force = false) {
     }
   }
 
+  function paintMiniState(state) {
+    if (!miniUi || !state) return;
+    const track = state.track_window?.current_track;
+    if (!track) return;
+
+    const artistNames = (track.artists || []).map(artist => artist.name).filter(Boolean).join(', ');
+    const cover = track.album?.images?.[0]?.url || '';
+
+    miniUi.title.textContent = track.name || 'Reproduciendo';
+    miniUi.artist.textContent = artistNames || currentPlaybackArtistName || 'Spotify';
+    miniUi.main.textContent = state.paused ? '▶' : 'Ⅱ';
+    miniUi.main.setAttribute('aria-label', state.paused ? 'Reproducir' : 'Pausar');
+    miniUi.fill.style.width = state.duration
+      ? `${Math.max(0, Math.min(100, state.position / state.duration * 100))}%`
+      : '0%';
+
+    if (cover && miniUi.cover.dataset.src !== cover) {
+      miniUi.cover.dataset.src = cover;
+      miniUi.cover.innerHTML = `<img src="${escapeHtml(cover)}" alt="">`;
+    }
+  }
+
+  function updateMiniVisibility() {
+    const hasTrack = Boolean(latestPlaybackState?.track_window?.current_track && currentPlaybackProfileId);
+    const sourceArtistOpen = activeScreen === 'artist'
+      && currentPlaybackArtistName
+      && activeArtist === currentPlaybackArtistName;
+    const visible = hasTrack && !sourceArtistOpen;
+    miniPlayer.hidden = !visible;
+    appShell?.classList.toggle('mini-player-visible', visible);
+  }
+
+  function paintPremiumState(state) {
+    if (!state) {
+      latestPlaybackState = null;
+      updateMiniVisibility();
+      return;
+    }
+
+    latestPlaybackState = state;
+    if (activePremiumUi) paintPremiumUi(activePremiumUi,state);
+    paintMiniState(state);
+    updateMiniVisibility();
+  }
+
   function startProgressTicker() {
     if (progressTimer) return;
     progressTimer = window.setInterval(async () => {
-      if (!webPlayer || !activePremiumUi) return;
+      if (!webPlayer) return;
       try {
         const state = await webPlayer.getCurrentState();
         if (state) paintPremiumState(state);
@@ -3647,7 +3866,10 @@ resolveAct = async function resolveActSafely(name, force = false) {
     if (!webPlayer || !webDeviceId) await ensureWebPlayer();
     try { webPlayer.activateElement(); } catch {}
 
+    currentPlaybackProfileId=profile.id;
+    currentPlaybackArtistName=activeArtist || profile.name || '';
     activePremiumUi=ui;
+    updateMiniVisibility();
     ui.status.textContent='Iniciando reproducción completa…';
     ui.main.disabled=true;
 
@@ -3658,6 +3880,12 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
     try {
       await play();
+      window.setTimeout(async () => {
+        try {
+          const state = await webPlayer?.getCurrentState();
+          if (state) paintPremiumState(state);
+        } catch {}
+      },120);
     } catch (error) {
       if (error.status !== 404) throw error;
       await userPlaybackRequest('/me/player',{
@@ -3734,8 +3962,14 @@ resolveAct = async function resolveActSafely(name, force = false) {
       status:card.querySelector('.artist-premium-status'),
       fallbackImage:initialCover,
       profileName:profile.name || '',
-      started:false
+      profileId:profile.id || '',
+      started:currentPlaybackProfileId === profile.id
     };
+
+    if (ui.started && latestPlaybackState) {
+      activePremiumUi=ui;
+      paintPremiumUi(ui,latestPlaybackState);
+    }
 
     card.querySelector('.premium-prev').addEventListener('click', async () => {
       if (!webPlayer) return;
@@ -3767,8 +4001,20 @@ resolveAct = async function resolveActSafely(name, force = false) {
       }
     });
 
-    ensureWebPlayer().then(() => {
-      ui.status.textContent='Spotify Premium · listo';
+    ensureWebPlayer().then(async () => {
+      if (currentPlaybackProfileId === profile.id) {
+        ui.started=true;
+        activePremiumUi=ui;
+        try {
+          const state=await webPlayer.getCurrentState();
+          if (state) paintPremiumState(state);
+          else ui.status.textContent='Spotify Premium · reproducción activa';
+        } catch {
+          ui.status.textContent='Spotify Premium · reproducción activa';
+        }
+      } else {
+        ui.status.textContent='Spotify Premium · listo';
+      }
       ui.main.disabled=false;
     }).catch(error => {
       fallbackPremiumItem(item,profile,error.message || 'No se pudo iniciar Spotify Premium en este navegador.');
@@ -3814,7 +4060,16 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
       playerRoot.appendChild(item);
     }
+
+    updateMiniVisibility();
   }
+
+  const showScreenBase=showScreen;
+  showScreen=function showScreenWithPersistentPlayer(name) {
+    const result=showScreenBase(name);
+    window.requestAnimationFrame(updateMiniVisibility);
+    return result;
+  };
 
   const openArtistBase=openArtist;
   openArtist=function openArtistWithPlayer(artistName) {

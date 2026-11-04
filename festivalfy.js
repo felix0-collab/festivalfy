@@ -670,7 +670,7 @@ function paintUserSpotifyProfile(profile = null) {
     ? 'Spotify Premium conectado · reproducción completa activada dentro de Festivalfy.'
     : profile?.product
       ? `Cuenta ${profile.product} conectada · la reproducción completa dentro de Festivalfy requiere Premium.`
-      : 'Cuenta conectada · la reproducción completa dentro de Festivalfy requiere Spotify Premium.';
+      : 'Cuenta conectada · Festivalfy comprobará Premium al iniciar la reproducción completa.';
 }
 
 async function renderUserSpotifyProfile() {
@@ -3576,10 +3576,13 @@ resolveAct = async function resolveActSafely(name, force = false) {
       button.disabled = false;
       button.innerHTML = '<span aria-hidden="true">▶</span><span>Escuchar completo<small>Spotify Premium conectado</small></span>';
     }).catch(error => {
-      button.disabled = false;
-      button.innerHTML = '<span aria-hidden="true">▶</span><span>Escuchar muestra<small>Spotify no pudo iniciar el reproductor Premium</small></span>';
-      button.onclick = null;
-      button.addEventListener('click', () => loadEmbed(item, profile), {once:true});
+      const fallback = document.createElement('button');
+      fallback.type = 'button';
+      fallback.className = 'artist-player-load';
+      fallback.innerHTML = '<span aria-hidden="true">▶</span><span>Escuchar muestra<small>Spotify no pudo iniciar el reproductor Premium</small></span>';
+      fallback.addEventListener('click', () => loadEmbed(item, profile));
+      button.replaceWith(fallback);
+
       const hint = document.createElement('p');
       hint.className = 'artist-player-hint';
       hint.textContent = error.message || 'No se pudo iniciar Spotify Premium en este navegador.';
@@ -3596,7 +3599,6 @@ resolveAct = async function resolveActSafely(name, force = false) {
     const connected = isUserSpotifyConnected();
     const hasScopes = connected && userSpotifyHasPlaybackScopes();
     const userProfile = cachedUserSpotifyProfile();
-    const premium = String(userProfile?.product || '').toLowerCase() === 'premium';
 
     for (const profile of list) {
       const item = document.createElement('div');
@@ -3621,22 +3623,13 @@ resolveAct = async function resolveActSafely(name, force = false) {
           toast('Activa la reproducción completa de Spotify desde Perfil');
         });
         item.appendChild(button);
-      } else if (premium) {
-        addPremiumItem(item, profile);
       } else {
-        addFallbackItem(item, profile, userProfile?.product
-          ? 'Tu cuenta está conectada, pero Spotify Premium es necesario para reproducir canciones completas dentro de Festivalfy.'
-          : 'Comprobando tu tipo de cuenta de Spotify…');
+        addPremiumItem(item, profile);
       }
 
       playerRoot.appendChild(item);
     }
 
-    if (connected && hasScopes && !userProfile) {
-      loadUserSpotifyProfile().then(() => {
-        if (activeArtist === name && activeScreen === 'artist') renderPlayer(name);
-      }).catch(error => console.warn('No se pudo comprobar Spotify Premium.', error));
-    }
   }
 
   const openArtistBase = openArtist;

@@ -56,7 +56,7 @@ La acción principal de **Radio del festival** crea dentro de Festivalfy una mez
 
 La generación es progresiva: en cuanto se encuentra la primera canción válida, Festivalfy empieza a reproducirla y continúa buscando y añadiendo el resto mediante la cola de Spotify. Así no es necesario esperar a tener las 50 canciones antes de escuchar. Si el usuario inicia manualmente otro artista o genera una nueva mezcla, la generación anterior se cancela para no contaminar la nueva reproducción.
 
-Las canciones verificadas encontradas se conservan en memoria durante la sesión para acelerar las siguientes mezclas. Al tocar el mini reproductor mientras suena la Radio, Festivalfy abre la ficha de la actuación correspondiente al artista que está sonando, desde donde puede guardarse en *Mi cartel*. *Nueva mezcla* vuelve a elegir artistas/canciones. La playlist pública existente sigue disponible como alternativa mediante *Abrir playlist en Spotify*.
+Las canciones verificadas encontradas se conservan en memoria durante la sesión para acelerar las siguientes mezclas. El Web Playback SDK se prepara en segundo plano y el toque sobre *Escuchar mezcla* activa el elemento de reproducción de forma síncrona antes de buscar canciones, para respetar las restricciones de autoplay de Safari/iOS. Al tocar el mini reproductor mientras suena la Radio, Festivalfy identifica primero la URI exacta de la canción en la mezcla (y, como respaldo, la URI spotify:artist del intérprete) y abre la ficha de la actuación correspondiente, desde donde puede guardarse en *Mi cartel*. *Nueva mezcla* vuelve a elegir artistas/canciones. La playlist pública existente sigue disponible como alternativa mediante *Abrir playlist en Spotify*.
 
 ## Compartir y comparar carteles
 

@@ -3629,13 +3629,24 @@ resolveAct = async function resolveActSafely(name, force = false) {
     fill:miniPlayer.querySelector('.festivalfy-mini-fill')
   };
 
+  function currentRadioFestivalAct(track = latestPlaybackState?.track_window?.current_track) {
+    if (!track || currentPlaybackProfileId !== FESTIVAL_RADIO_SOURCE_ID) return '';
+
+    const exactTrack=(currentFestivalRadioMix || []).find(item => item.uri === track.uri);
+    if (exactTrack?.act && allArtists().includes(exactTrack.act)) return exactTrack.act;
+
+    const artistUris=new Set((track.artists || []).map(artist => artist?.uri).filter(Boolean));
+    const artistMatch=(currentFestivalRadioMix || []).find(
+      item => artistUris.has('spotify:artist:' + item.profileId)
+    );
+    return artistMatch?.act && allArtists().includes(artistMatch.act) ? artistMatch.act : '';
+  }
+
   miniPlayer.querySelector('.festivalfy-mini-open').addEventListener('click', () => {
     if (currentPlaybackProfileId === FESTIVAL_RADIO_SOURCE_ID) {
-      const track=latestPlaybackState?.track_window?.current_track;
-      const artistIds=new Set((track?.artists || []).map(artist => artist?.id).filter(Boolean));
-      const match=(currentFestivalRadioMix || []).find(item => artistIds.has(item.profileId));
-      if (match?.act && allArtists().includes(match.act)) {
-        openArtist(match.act);
+      const act=currentRadioFestivalAct();
+      if (act) {
+        openArtist(act);
         return;
       }
       openFestival();
@@ -3747,11 +3758,10 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
     const miniOpen=miniPlayer.querySelector('.festivalfy-mini-open');
     if (miniOpen && currentPlaybackProfileId === FESTIVAL_RADIO_SOURCE_ID) {
-      const artistIds=new Set((track.artists || []).map(artist => artist?.id).filter(Boolean));
-      const match=(currentFestivalRadioMix || []).find(item => artistIds.has(item.profileId));
+      const act=currentRadioFestivalAct(track);
       miniOpen.setAttribute(
         'aria-label',
-        match?.act ? `Abrir ficha de ${match.act}` : 'Abrir Radio del festival'
+        act ? `Abrir ficha de ${act}` : 'Abrir Radio del festival'
       );
     } else if (miniOpen) {
       miniOpen.setAttribute('aria-label','Volver al artista que está sonando');
@@ -4639,6 +4649,16 @@ resolveAct = async function resolveActSafely(name, force = false) {
   };
 
   window.FestivalfyPlayer = Object.freeze({
+    prepareFestivalRadio: () => ensureWebPlayer(),
+    activateFromUserGesture: () => {
+      if (!webPlayer) return false;
+      try {
+        webPlayer.activateElement();
+        return true;
+      } catch {
+        return false;
+      }
+    },
     playFestivalRadio: playFestivalRadioMix,
     hasFestivalRadioMix: () => Boolean(currentFestivalRadioMix?.length)
   });
@@ -4803,8 +4823,38 @@ resolveAct = async function resolveActSafely(name, force = false) {
     }
   }
 
-  playButton.addEventListener('click',() => playMix(false));
-  remixButton.addEventListener('click',() => playMix(true));
+  function prepareRadioPlayer() {
+    if (!isUserSpotifyConnected() || !userSpotifyHasPlaybackScopes()) return;
+
+    const player=window.FestivalfyPlayer;
+    if (!player?.prepareFestivalRadio) return;
+
+    playButton.disabled=true;
+    playButton.textContent='Preparando reproductor…';
+    setStatus('Preparando Spotify para que la mezcla empiece con un solo toque…');
+
+    player.prepareFestivalRadio().then(() => {
+      playButton.disabled=false;
+      playButton.textContent='▶ Escuchar mezcla';
+      setStatus('50 canciones · hasta 50 artistas verificados del cartel.');
+    }).catch(error => {
+      console.warn('Festivalfy radio player preparation failed',error);
+      playButton.disabled=false;
+      playButton.textContent='▶ Escuchar mezcla';
+      setStatus('Spotify se preparará al pulsar. Si falla, revisa la conexión desde Perfil.');
+    });
+  }
+
+  playButton.addEventListener('click',() => {
+    window.FestivalfyPlayer?.activateFromUserGesture?.();
+    playMix(false);
+  });
+  remixButton.addEventListener('click',() => {
+    window.FestivalfyPlayer?.activateFromUserGesture?.();
+    playMix(true);
+  });
+
+  prepareRadioPlayer();
 })();
 
 /* ===== artist-filters.js ===== */

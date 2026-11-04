@@ -3286,7 +3286,43 @@ resolveAct = async function resolveActSafely(name, force = false) {
   let miniUi = null;
   let webPlayerRecoveryPromise = null;
   let webPlayerGeneration = 0;
-  const artistTrackUriCache = new Map();
+  const ARTIST_TRACK_CACHE_KEY='festivalfy_artist_track_uris_v2';
+
+  function loadArtistTrackUriCache() {
+    try {
+      const raw=JSON.parse(localStorage.getItem(ARTIST_TRACK_CACHE_KEY) || '{}');
+      return new Map(
+        Object.entries(raw || {})
+          .map(([profileId,uris]) => [
+            profileId,
+            Array.isArray(uris)
+              ? [...new Set(uris.filter(uri => /^spotify:track:[A-Za-z0-9]+$/.test(String(uri))))].slice(0,20)
+              : []
+          ])
+          .filter(([,uris]) => uris.length)
+      );
+    } catch {
+      return new Map();
+    }
+  }
+
+  function persistArtistTrackUriCache() {
+    try {
+      localStorage.setItem(
+        ARTIST_TRACK_CACHE_KEY,
+        JSON.stringify(Object.fromEntries(
+          [...artistTrackUriCache.entries()]
+            .filter(([,uris]) => Array.isArray(uris) && uris.length)
+            .map(([profileId,uris]) => [profileId,uris.slice(0,20)])
+        ))
+      );
+    } catch {}
+  }
+
+  const artistTrackUriCache = loadArtistTrackUriCache();
+  let artistQueueLockGeneration=0;
+  let artistQueueLockPromise=null;
+  let artistQueueLockedProfileId='';
   const FESTIVAL_RADIO_SOURCE_ID = '__festival_radio__';
   const FESTIVAL_RADIO_PLAYLIST_URI = 'spotify:playlist:7lxl2eyUucpEXVs4PHbv6e';
   let currentFestivalRadioMix = null;
@@ -3858,6 +3894,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
         if (state) {
           paintPremiumState(state);
           monitorFestivalRadioSession(state);
+          lockArtistQueueFromState(state);
         }
       } catch {}
     }, 700);
@@ -3942,6 +3979,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
         if (generation !== webPlayerGeneration || webPlayer !== playerInstance) return;
         paintPremiumState(state);
         monitorFestivalRadioSession(state);
+        lockArtistQueueFromState(state);
         startProgressTicker();
       });
       playerInstance.addListener('initialization_error', ({message}) => rejectReady(new Error(message || 'No se pudo iniciar Spotify.')));
@@ -4026,7 +4064,13 @@ resolveAct = async function resolveActSafely(name, force = false) {
   }
 
   function trackBelongsToProfile(track, profileId) {
-    return Boolean(track?.uri && (track.artists || []).some(artist => artist?.id === profileId));
+    const expectedUri=`spotify:artist:${profileId}`;
+    return Boolean(
+      track?.uri
+      && (track.artists || []).some(
+        artist => artist?.id === profileId || artist?.uri === expectedUri
+      )
+    );
   }
 
   function uniqueTrackUris(tracks, profileId) {
@@ -4038,6 +4082,204 @@ resolveAct = async function resolveActSafely(name, force = false) {
       uris.push(track.uri);
     }
     return uris;
+  }
+
+  function cacheExactArtistUris(profileId,uris) {
+    const clean=[...new Set((uris || []).filter(uri => /^spotify:track:[A-Za-z0-9]+$/.test(String(uri))))].slice(0,20);
+    if (!profileId || !clean.length) return [];
+    const prior=artistTrackUriCache.get(profileId) || [];
+    const merged=[...new Set([...prior,...clean])].slice(0,20);
+    artistTrackUriCache.set(profileId,merged);
+    persistArtistTrackUriCache();
+    return merged;
+  }
+
+  function rotateArtistUris(uris,currentUri) {
+    const clean=[...new Set((uris || []).filter(Boolean))];
+    if (!currentUri || !clean.includes(currentUri)) return clean;
+    return [currentUri,...clean.filter(uri => uri !== currentUri)];
+  }
+
+  function exactUrisFromPlaybackState(state,profileId) {
+    const windowTracks=[
+      state?.track_window?.current_track,
+      ...(state?.track_window?.next_tracks || [])
+    ].filter(Boolean);
+    return uniqueTrackUris(windowTracks,profileId);
+  }
+
+  async function exactUrisFromAlbum(profileId,albumUri) {
+    const albumId=String(albumUri || '').split(':').pop();
+    if (!albumId) return [];
+    try {
+      const tracks=await userPlaybackRequest(
+        `/albums/${encodeURIComponent(albumId)}/tracks?limit=50`
+      );
+      return uniqueTrackUris(tracks?.items,profileId);
+    } catch (error) {
+      console.warn('Festivalfy no pudo completar la cola desde el álbum.',albumId,error);
+      return [];
+    }
+  }
+
+  async function exactUrisFromMoreAlbums(profileId,usedUris = new Set()) {
+    const found=[];
+    try {
+      const albums=await userPlaybackRequest(
+        `/artists/${encodeURIComponent(profileId)}/albums?include_groups=album,single&limit=3`
+      );
+
+      for (const album of (albums?.items || []).slice(0,3)) {
+        if (!album?.id || found.length >= 12) break;
+        try {
+          const tracks=await userPlaybackRequest(
+            `/albums/${encodeURIComponent(album.id)}/tracks?limit=50`
+          );
+          for (const uri of uniqueTrackUris(tracks?.items,profileId)) {
+            if (usedUris.has(uri) || found.includes(uri)) continue;
+            found.push(uri);
+            if (found.length >= 12) break;
+          }
+        } catch (error) {
+          if (error?.status === 429) break;
+          console.warn('Festivalfy no pudo ampliar la cola del artista.',album.id,error);
+        }
+      }
+    } catch (error) {
+      console.warn('Festivalfy no pudo leer más álbumes del artista.',profileId,error);
+    }
+    return found;
+  }
+
+  async function playStrictArtistUris(profileId,uris,positionMs=0,generation=artistQueueLockGeneration) {
+    const exact=[...new Set((uris || []).filter(Boolean))].slice(0,20);
+    if (!exact.length) return false;
+    if (generation !== artistQueueLockGeneration || currentPlaybackProfileId !== profileId) return false;
+    if (!webDeviceId) await recoverWebPlayer('artist_strict_missing_device');
+    if (generation !== artistQueueLockGeneration || currentPlaybackProfileId !== profileId) return false;
+
+    await userPlaybackRequest(
+      `/me/player/play?device_id=${encodeURIComponent(webDeviceId)}`,
+      {
+        method:'PUT',
+        body:{
+          uris:exact,
+          position_ms:Math.max(0,Math.floor(Number(positionMs) || 0))
+        }
+      }
+    );
+
+    window.setTimeout(() => {
+      if (
+        generation !== artistQueueLockGeneration
+        || currentPlaybackProfileId !== profileId
+        || !webDeviceId
+      ) return;
+      userPlaybackRequest(
+        `/me/player/repeat?state=context&device_id=${encodeURIComponent(webDeviceId)}`,
+        {method:'PUT'}
+      ).catch(() => {});
+      userPlaybackRequest(
+        `/me/player/shuffle?state=false&device_id=${encodeURIComponent(webDeviceId)}`,
+        {method:'PUT'}
+      ).catch(() => {});
+    },180);
+
+    return true;
+  }
+
+  async function lockArtistQueueFromState(state) {
+    const profileId=currentPlaybackProfileId;
+    if (!profileId || profileId === FESTIVAL_RADIO_SOURCE_ID || !state) return;
+
+    const track=state.track_window?.current_track;
+    if (!track?.uri) return;
+
+    const generation=artistQueueLockGeneration;
+
+    if (!trackBelongsToProfile(track,profileId)) {
+      if (artistQueueLockPromise) return;
+
+      const cached=artistTrackUriCache.get(profileId) || [];
+      if (!cached.length) {
+        try { await webPlayer?.pause(); } catch {}
+        if (activePremiumUi?.status) {
+          activePremiumUi.status.textContent='Spotify intentó salir del artista · reproducción detenida';
+        }
+        return;
+      }
+
+      artistQueueLockPromise=(async () => {
+        const restored=await playStrictArtistUris(profileId,cached,0,generation);
+        if (restored && activePremiumUi?.status) {
+          activePremiumUi.status.textContent='Spotify Premium · solo este artista';
+        }
+      })();
+
+      try { await artistQueueLockPromise; }
+      catch (error) { console.warn('Festivalfy no pudo recuperar la cola estricta.',error); }
+      finally { artistQueueLockPromise=null; }
+      return;
+    }
+
+    if (artistQueueLockedProfileId === profileId || artistQueueLockPromise) return;
+
+    artistQueueLockPromise=(async () => {
+      const currentUri=track.uri;
+      let exact=[
+        ...exactUrisFromPlaybackState(state,profileId),
+        ...(artistTrackUriCache.get(profileId) || [])
+      ];
+      exact=[...new Set(exact)];
+
+      if (exact.length < 4 && track.album?.uri) {
+        exact=[...new Set([
+          ...exact,
+          ...(await exactUrisFromAlbum(profileId,track.album.uri))
+        ])];
+      }
+
+      if (exact.length < 4) {
+        exact=[...new Set([
+          ...exact,
+          ...(await exactUrisFromMoreAlbums(profileId,new Set(exact)))
+        ])];
+      }
+
+      if (
+        generation !== artistQueueLockGeneration
+        || currentPlaybackProfileId !== profileId
+      ) return;
+
+      if (!exact.length) exact=[currentUri];
+      exact=rotateArtistUris(exact,currentUri).slice(0,20);
+      cacheExactArtistUris(profileId,exact);
+
+      const locked=await playStrictArtistUris(
+        profileId,
+        exact,
+        state.position || 0,
+        generation
+      );
+      if (!locked) return;
+
+      artistQueueLockedProfileId=profileId;
+      if (activePremiumUi?.status) {
+        activePremiumUi.status.textContent=exact.length > 1
+          ? `Spotify Premium · ${exact.length} canciones de este artista`
+          : 'Spotify Premium · solo este artista';
+      }
+    })();
+
+    try { await artistQueueLockPromise; }
+    catch (error) {
+      console.warn('Festivalfy no pudo fijar la cola del artista.',error);
+      if (activePremiumUi?.status) {
+        activePremiumUi.status.textContent='Spotify Premium · protegiendo la reproducción del artista';
+      }
+    } finally {
+      artistQueueLockPromise=null;
+    }
   }
 
   async function findExactArtistTracks(profile) {
@@ -4106,6 +4348,9 @@ resolveAct = async function resolveActSafely(name, force = false) {
     try { webPlayer.activateElement(); } catch {}
 
     festivalRadioGeneration+=1;
+    artistQueueLockGeneration+=1;
+    artistQueueLockPromise=null;
+    artistQueueLockedProfileId='';
     festivalRadioSessionEnding=true;
     currentFestivalRadioMix=null;
     currentPlaybackProfileId=profile.id;
@@ -4156,11 +4401,14 @@ resolveAct = async function resolveActSafely(name, force = false) {
       }
 
       ui.started=true;
-      ui.status.textContent='Spotify Premium · reproducción del artista';
+      ui.status.textContent='Spotify Premium · preparando cola solo de este artista';
       window.setTimeout(async () => {
         try {
           const state=await webPlayer?.getCurrentState();
-          if (state) paintPremiumState(state);
+          if (state) {
+            paintPremiumState(state);
+            lockArtistQueueFromState(state);
+          }
         } catch {}
       },180);
     } finally {
@@ -4553,6 +4801,9 @@ resolveAct = async function resolveActSafely(name, force = false) {
     }
 
     ++festivalRadioGeneration;
+    artistQueueLockGeneration+=1;
+    artistQueueLockPromise=null;
+    artistQueueLockedProfileId='';
     resetFestivalRadioSession(targetTracks);
     currentFestivalRadioMix=[{
       uri:FESTIVAL_RADIO_PLAYLIST_URI,

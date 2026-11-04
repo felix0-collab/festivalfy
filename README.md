@@ -88,3 +88,10 @@ El módulo compartido de reproducción se restauró a la versión estable de ref
 Para evitar que la cuota de Spotify Development Mode bloquee la reproducción, Festivalfy ya no necesita buscar canciones antes de empezar. Las fichas reproducen directamente el contexto oficial del artista (`spotify:artist:<id>`) y la Radio reproduce el contexto de la playlist verificada del festival. La Radio activa shuffle y limita localmente cada sesión a 20 canciones. De esta forma, pasar de Radio a artista reemplaza el contexto completo y no deja una cola de Radio pendiente.
 
 Los errores `429` conservan ahora el campo `reason` de Spotify, incluido `QUOTA_EXCEEDED`, para no confundir una limitación temporal de API con la ausencia de canciones del artista.
+
+
+## Cola estricta por artista
+
+Las fichas pueden arrancar con el contexto de artista para obtener una primera canción inmediata, pero Festivalfy transforma enseguida esa reproducción en una lista explícita de URIs verificadas cuyo artista coincide con el Spotify Artist ID seleccionado. Primero aprovecha `current_track` y `next_tracks` del Web Playback SDK; si faltan canciones, completa desde el álbum actual y, como último recurso, desde unos pocos álbumes del artista. La lista resultante se guarda localmente por Spotify Artist ID para evitar repetir consultas de catálogo.
+
+Si Spotify intenta reproducir una pista que no contiene el Artist ID seleccionado, Festivalfy restaura la lista estricta; si todavía no existe una lista recuperable, detiene la reproducción antes de continuar con otro artista.

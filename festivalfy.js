@@ -3287,6 +3287,11 @@ resolveAct = async function resolveActSafely(name, force = false) {
   let webPlayerRecoveryPromise = null;
   let webPlayerGeneration = 0;
   const artistTrackUriCache = new Map();
+  let artistPlaybackUris = [];
+  let artistPlaybackProfileId = '';
+  let artistPlaybackLastValidUri = '';
+  let artistPlaybackGuardEnabled = false;
+  let artistPlaybackGuardPromise = null;
   const FESTIVAL_RADIO_SOURCE_ID = '__festival_radio__';
   let currentFestivalRadioMix = null;
   let festivalRadioGeneration = 0;
@@ -4092,6 +4097,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
       playerInstance.addListener('player_state_changed', state => {
         if (generation !== webPlayerGeneration || webPlayer !== playerInstance) return;
         paintPremiumState(state);
+        guardArtistPlayback(state);
         startProgressTicker();
       });
       playerInstance.addListener('initialization_error', ({message}) => rejectReady(new Error(message || 'No se pudo iniciar Spotify.')));
@@ -4172,6 +4178,87 @@ resolveAct = async function resolveActSafely(name, force = false) {
       throw error;
     }
     return payload;
+  }
+
+  function sdkTrackBelongsToProfile(track, profileId) {
+    if (!track || !profileId) return false;
+    if (artistPlaybackUris.includes(track.uri)) return true;
+    const expectedUri=`spotify:artist:${profileId}`;
+    return (track.artists || []).some(artist => (
+      artist?.id === profileId || artist?.uri === expectedUri
+    ));
+  }
+
+  function nextArtistPlaybackUris() {
+    if (!artistPlaybackUris.length) return [];
+    const currentIndex=artistPlaybackUris.indexOf(artistPlaybackLastValidUri);
+    const start=currentIndex >= 0
+      ? (currentIndex + 1) % artistPlaybackUris.length
+      : 0;
+    return [
+      ...artistPlaybackUris.slice(start),
+      ...artistPlaybackUris.slice(0,start)
+    ];
+  }
+
+  async function guardArtistPlayback(state) {
+    if (
+      !artistPlaybackGuardEnabled
+      || !artistPlaybackProfileId
+      || currentPlaybackProfileId !== artistPlaybackProfileId
+      || currentPlaybackProfileId === FESTIVAL_RADIO_SOURCE_ID
+    ) return;
+
+    const track=state?.track_window?.current_track;
+    if (!track) return;
+
+    if (sdkTrackBelongsToProfile(track,artistPlaybackProfileId)) {
+      artistPlaybackLastValidUri=track.uri || artistPlaybackLastValidUri;
+      return;
+    }
+
+    if (artistPlaybackGuardPromise) return artistPlaybackGuardPromise;
+
+    artistPlaybackGuardPromise=(async () => {
+      const uris=nextArtistPlaybackUris();
+      if (!uris.length) return;
+
+      if (activePremiumUi?.status) {
+        activePremiumUi.status.textContent='Manteniendo la reproducción de este artista…';
+      }
+
+      if (!webDeviceId) await recoverWebPlayer('artist_guard_missing_device');
+
+      try {
+        await userPlaybackRequest(
+          `/me/player/shuffle?state=false&device_id=${encodeURIComponent(webDeviceId)}`,
+          {method:'PUT'}
+        );
+      } catch {}
+
+      try {
+        await userPlaybackRequest(
+          `/me/player/repeat?state=context&device_id=${encodeURIComponent(webDeviceId)}`,
+          {method:'PUT'}
+        );
+      } catch {}
+
+      await userPlaybackRequest(
+        `/me/player/play?device_id=${encodeURIComponent(webDeviceId)}`,
+        {method:'PUT',body:{uris}}
+      );
+    })();
+
+    try {
+      await artistPlaybackGuardPromise;
+    } catch (error) {
+      console.warn('Festivalfy no pudo mantener el modo artista.',error);
+      if (activePremiumUi?.status) {
+        activePremiumUi.status.textContent='Spotify se ha desviado · pulsa reproducir para recuperar este artista';
+      }
+    } finally {
+      artistPlaybackGuardPromise=null;
+    }
   }
 
   function trackBelongsToProfile(track, profileId) {
@@ -4271,6 +4358,11 @@ resolveAct = async function resolveActSafely(name, force = false) {
       throw error;
     }
 
+    artistPlaybackUris=[...trackUris];
+    artistPlaybackProfileId=profile.id;
+    artistPlaybackLastValidUri='';
+    artistPlaybackGuardEnabled=false;
+
     ui.status.textContent='Iniciando reproducción completa…';
 
     const playOnDevice=async () => {
@@ -4278,6 +4370,12 @@ resolveAct = async function resolveActSafely(name, force = false) {
       try {
         await userPlaybackRequest(
           `/me/player/shuffle?state=false&device_id=${encodeURIComponent(webDeviceId)}`,
+          {method:'PUT'}
+        );
+      } catch {}
+      try {
+        await userPlaybackRequest(
+          `/me/player/repeat?state=context&device_id=${encodeURIComponent(webDeviceId)}`,
           {method:'PUT'}
         );
       } catch {}
@@ -4310,8 +4408,9 @@ resolveAct = async function resolveActSafely(name, force = false) {
         }
       }
 
+      artistPlaybackGuardEnabled=true;
       ui.started=true;
-      ui.status.textContent='Spotify Premium · reproducción completa';
+      ui.status.textContent='Spotify Premium · solo este artista';
       window.setTimeout(async () => {
         try {
           const state = await webPlayer?.getCurrentState();
@@ -4537,6 +4636,10 @@ resolveAct = async function resolveActSafely(name, force = false) {
     if (!webPlayer || !webDeviceId) await ensureWebPlayer();
     try { webPlayer.activateElement(); } catch {}
 
+    artistPlaybackGuardEnabled=false;
+    artistPlaybackProfileId='';
+    artistPlaybackUris=[];
+    artistPlaybackLastValidUri='';
     currentPlaybackProfileId=FESTIVAL_RADIO_SOURCE_ID;
     currentPlaybackArtistName='Radio del festival';
     activePremiumUi=null;
@@ -4548,6 +4651,12 @@ resolveAct = async function resolveActSafely(name, force = false) {
       try {
         await userPlaybackRequest(
           `/me/player/shuffle?state=false&device_id=${encodeURIComponent(webDeviceId)}`,
+          {method:'PUT'}
+        );
+      } catch {}
+      try {
+        await userPlaybackRequest(
+          `/me/player/repeat?state=off&device_id=${encodeURIComponent(webDeviceId)}`,
           {method:'PUT'}
         );
       } catch {}

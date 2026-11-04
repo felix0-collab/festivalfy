@@ -3210,9 +3210,9 @@ resolveAct = async function resolveActSafely(name, force = false) {
 /* ===== artist-player.js ===== */
 'use strict';
 
-// Spotify Embed remains the fallback for visitors without a Premium connection.
-// Premium users connected from Perfil use Spotify's Web Playback SDK so playback
-// happens as a real Spotify Connect device in the browser.
+// Visitors without a Premium connection keep Spotify Embed as fallback.
+// Premium users connected from Perfil use the Web Playback SDK underneath,
+// but the visible player stays compact and consistent with the sample player.
 (() => {
   const profiles = $('#artistProfiles');
   if (!profiles) return;
@@ -3222,6 +3222,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
   let webPlayerReadyPromise = null;
   let webDeviceId = '';
   let activePremiumUi = null;
+  let progressTimer = null;
 
   const style = document.createElement('style');
   style.textContent = `
@@ -3268,58 +3269,140 @@ resolveAct = async function resolveActSafely(name, force = false) {
       border:0;
       border-radius:14px;
     }
-    .artist-premium-controls {
-      display:grid;
-      gap:11px;
-      margin-top:10px;
-      padding:13px;
-      border:1px solid rgba(30,215,96,.22);
-      border-radius:14px;
-      background:rgba(30,215,96,.06);
-    }
-    .artist-premium-now {
-      overflow:hidden;
-      color:#e9e2ec;
-      font-size:13px;
-      font-weight:800;
-      line-height:1.35;
-      text-overflow:ellipsis;
-      white-space:nowrap;
-    }
-    .artist-premium-now small {
-      display:block;
-      margin-top:3px;
-      overflow:hidden;
-      color:#968d9b;
-      font-size:11px;
-      font-weight:700;
-      text-overflow:ellipsis;
-      white-space:nowrap;
-    }
-    .artist-premium-buttons {
-      display:grid;
-      grid-template-columns:1fr 1.25fr 1fr;
-      gap:8px;
-    }
-    .artist-premium-buttons button {
-      min-height:39px;
-      border:1px solid #3c3441;
-      border-radius:999px;
-      background:#1b1720;
-      color:#fff;
-      cursor:pointer;
-      font-weight:900;
-    }
-    .artist-premium-buttons .premium-toggle {
-      border-color:rgba(30,215,96,.36);
-      background:#1ed760;
-      color:#07140b;
-    }
     .artist-player-hint {
       margin:7px 3px 0;
       color:#817887;
       font-size:11px;
       line-height:1.45;
+    }
+
+    .artist-premium-card {
+      position:relative;
+      overflow:hidden;
+      min-height:152px;
+      padding:13px;
+      border:1px solid #29262d;
+      border-radius:14px;
+      background:#121212;
+      color:#fff;
+      box-shadow:0 8px 24px rgba(0,0,0,.18);
+    }
+    .artist-premium-top {
+      display:grid;
+      grid-template-columns:70px minmax(0,1fr) 44px;
+      align-items:center;
+      gap:12px;
+    }
+    .artist-premium-cover {
+      width:70px;
+      height:70px;
+      overflow:hidden;
+      border-radius:8px;
+      background:linear-gradient(145deg,#47245c,#1d1822);
+      box-shadow:0 5px 15px rgba(0,0,0,.3);
+    }
+    .artist-premium-cover img {
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+    .artist-premium-copy {
+      min-width:0;
+    }
+    .artist-premium-title,
+    .artist-premium-artist {
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .artist-premium-title {
+      font-size:14px;
+      font-weight:900;
+      line-height:1.25;
+    }
+    .artist-premium-artist {
+      margin-top:4px;
+      color:#a7a7a7;
+      font-size:11px;
+      font-weight:700;
+    }
+    .artist-premium-brand {
+      display:block;
+      margin-top:7px;
+      color:#1ed760;
+      font-size:10px;
+      font-weight:850;
+    }
+    .artist-premium-main {
+      display:grid;
+      place-items:center;
+      width:44px;
+      height:44px;
+      border:0;
+      border-radius:50%;
+      background:#1ed760;
+      color:#08130b;
+      cursor:pointer;
+      font-size:18px;
+      font-weight:950;
+      box-shadow:0 4px 14px rgba(30,215,96,.22);
+    }
+    .artist-premium-main:disabled {
+      cursor:default;
+      opacity:.58;
+    }
+    .artist-premium-progress {
+      display:grid;
+      grid-template-columns:31px minmax(0,1fr) 31px;
+      align-items:center;
+      gap:8px;
+      margin-top:12px;
+      color:#8f8f8f;
+      font-size:9px;
+      font-variant-numeric:tabular-nums;
+    }
+    .artist-premium-track {
+      position:relative;
+      height:3px;
+      overflow:hidden;
+      border-radius:999px;
+      background:#4b4b4b;
+    }
+    .artist-premium-fill {
+      display:block;
+      width:0;
+      height:100%;
+      border-radius:inherit;
+      background:#fff;
+      transition:width .3s linear;
+    }
+    .artist-premium-controls {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      margin-top:9px;
+    }
+    .artist-premium-skip {
+      width:34px;
+      height:28px;
+      border:0;
+      background:transparent;
+      color:#b3b3b3;
+      cursor:pointer;
+      font-size:16px;
+      font-weight:900;
+    }
+    .artist-premium-status {
+      min-width:0;
+      flex:1;
+      overflow:hidden;
+      padding:0 7px;
+      color:#8f8f8f;
+      font-size:9px;
+      font-weight:700;
+      text-align:center;
+      text-overflow:ellipsis;
+      white-space:nowrap;
     }
   `;
   document.head.appendChild(style);
@@ -3337,9 +3420,15 @@ resolveAct = async function resolveActSafely(name, force = false) {
     const frame = document.createElement('iframe');
     frame.src = embedUrl(profile.id);
     frame.loading = 'lazy';
-    frame.allow = 'clipboard-write; encrypted-media; fullscreen; picture-in-picture';
+    frame.allow = 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture';
     frame.setAttribute('title', `Reproductor de Spotify de ${profile.name || 'el artista'}`);
     container.replaceChildren(frame);
+  }
+
+  function formatTime(ms) {
+    const seconds = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}:${String(seconds % 60).padStart(2,'0')}`;
   }
 
   function loadSpotifySdk() {
@@ -3370,15 +3459,41 @@ resolveAct = async function resolveActSafely(name, force = false) {
     return sdkLoadPromise;
   }
 
-  function updatePremiumState(state) {
+  function paintPremiumState(state) {
     if (!activePremiumUi || !state) return;
     const track = state.track_window?.current_track;
     if (!track) return;
 
+    const ui = activePremiumUi;
     const artistNames = (track.artists || []).map(artist => artist.name).filter(Boolean).join(', ');
-    activePremiumUi.now.innerHTML = `${escapeHtml(track.name || 'Reproduciendo')}<small>${escapeHtml(artistNames)}</small>`;
-    activePremiumUi.toggle.textContent = state.paused ? '▶' : 'Ⅱ';
-    activePremiumUi.controls.hidden = false;
+    const cover = track.album?.images?.[0]?.url || ui.fallbackImage || '';
+
+    ui.title.textContent = track.name || 'Reproduciendo';
+    ui.artist.textContent = artistNames || ui.profileName || '';
+    ui.main.textContent = state.paused ? '▶' : 'Ⅱ';
+    ui.main.setAttribute('aria-label', state.paused ? 'Reproducir' : 'Pausar');
+    ui.position.textContent = formatTime(state.position);
+    ui.duration.textContent = formatTime(state.duration);
+    ui.fill.style.width = state.duration
+      ? `${Math.max(0, Math.min(100, state.position / state.duration * 100))}%`
+      : '0%';
+    ui.status.textContent = state.paused ? 'Spotify Premium · en pausa' : 'Spotify Premium · reproducción completa';
+
+    if (cover && ui.cover.dataset.src !== cover) {
+      ui.cover.dataset.src = cover;
+      ui.cover.innerHTML = `<img src="${escapeHtml(cover)}" alt="">`;
+    }
+  }
+
+  function startProgressTicker() {
+    if (progressTimer) return;
+    progressTimer = window.setInterval(async () => {
+      if (!webPlayer || !activePremiumUi) return;
+      try {
+        const state = await webPlayer.getCurrentState();
+        if (state) paintPremiumState(state);
+      } catch {}
+    }, 700);
   }
 
   async function ensureWebPlayer() {
@@ -3390,43 +3505,45 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
     webPlayerReadyPromise = (async () => {
       await loadSpotifySdk();
-
       if (!window.Spotify?.Player) throw new Error('Spotify no ha podido iniciar el reproductor en este navegador.');
 
       webPlayer = new window.Spotify.Player({
-        name: 'Festivalfy Player',
-        getOAuthToken: async callback => {
+        name:'Festivalfy Player',
+        getOAuthToken:async callback => {
           try { callback(await getUserSpotifyAccessToken()); }
           catch (error) { console.warn('No se pudo renovar Spotify.', error); }
         },
-        volume: 0.8,
-        enableMediaSession: true
+        volume:0.8,
+        enableMediaSession:true
       });
       window.FESTIVALFY_USER_PLAYER = webPlayer;
 
       let resolveReady;
       let rejectReady;
-      const ready = new Promise((resolve, reject) => {
-        resolveReady = resolve;
-        rejectReady = reject;
+      const ready = new Promise((resolve,reject) => {
+        resolveReady=resolve;
+        rejectReady=reject;
       });
 
       webPlayer.addListener('ready', ({device_id}) => {
-        webDeviceId = device_id;
+        webDeviceId=device_id;
         resolveReady(device_id);
       });
       webPlayer.addListener('not_ready', ({device_id}) => {
-        if (device_id === webDeviceId) webDeviceId = '';
+        if (device_id === webDeviceId) webDeviceId='';
       });
-      webPlayer.addListener('player_state_changed', updatePremiumState);
+      webPlayer.addListener('player_state_changed', state => {
+        paintPremiumState(state);
+        startProgressTicker();
+      });
       webPlayer.addListener('initialization_error', ({message}) => rejectReady(new Error(message || 'No se pudo iniciar Spotify.')));
       webPlayer.addListener('authentication_error', ({message}) => rejectReady(new Error(message || 'Spotify ha rechazado la sesión.')));
       webPlayer.addListener('account_error', () => rejectReady(new Error('La reproducción completa requiere una cuenta Spotify Premium.')));
       webPlayer.addListener('playback_error', ({message}) => {
-        if (activePremiumUi?.now) activePremiumUi.now.textContent = message || 'Spotify no pudo reproducir esta canción.';
+        if (activePremiumUi?.status) activePremiumUi.status.textContent = message || 'Spotify no pudo reproducir esta canción.';
       });
       webPlayer.addListener('autoplay_failed', () => {
-        if (activePremiumUi?.now) activePremiumUi.now.textContent = 'Pulsa reproducir para iniciar el audio.';
+        if (activePremiumUi?.status) activePremiumUi.status.textContent = 'Pulsa reproducir para iniciar el audio.';
       });
 
       const connected = await webPlayer.connect();
@@ -3434,7 +3551,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
       await Promise.race([
         ready,
-        new Promise((_, reject) => window.setTimeout(() => reject(new Error('Spotify está tardando demasiado en preparar el reproductor.')), 15000))
+        new Promise((_,reject) => window.setTimeout(() => reject(new Error('Spotify está tardando demasiado en preparar el reproductor.')),15000))
       ]);
     })();
 
@@ -3442,26 +3559,26 @@ resolveAct = async function resolveActSafely(name, force = false) {
       await webPlayerReadyPromise;
       return webPlayer;
     } catch (error) {
-      webPlayerReadyPromise = null;
+      webPlayerReadyPromise=null;
       try { webPlayer?.disconnect(); } catch {}
-      webPlayer = null;
-      webDeviceId = '';
+      webPlayer=null;
+      webDeviceId='';
       throw error;
     }
   }
 
   async function userPlaybackRequest(path, options = {}, retry = 0) {
     const token = await getUserSpotifyAccessToken();
-    const headers = {Authorization: `Bearer ${token}`};
+    const headers = {Authorization:`Bearer ${token}`};
     let body;
 
     if (options.body !== undefined) {
-      headers['Content-Type'] = 'application/json';
-      body = JSON.stringify(options.body);
+      headers['Content-Type']='application/json';
+      body=JSON.stringify(options.body);
     }
 
     const response = await fetch(`https://api.spotify.com/v1${path}`, {
-      method: options.method || 'GET',
+      method:options.method || 'GET',
       headers,
       body
     });
@@ -3469,13 +3586,13 @@ resolveAct = async function resolveActSafely(name, force = false) {
     if (response.status === 401 && retry < 1) {
       localStorage.removeItem(USER_SPOTIFY.accessToken);
       await refreshUserSpotifyAccessToken();
-      return userPlaybackRequest(path, options, retry + 1);
+      return userPlaybackRequest(path,options,retry+1);
     }
 
     const payload = response.status === 204 ? {} : await response.json().catch(() => ({}));
     if (!response.ok) {
       const error = new Error(payload.error?.message || `Spotify respondió con el código ${response.status}.`);
-      error.status = response.status;
+      error.status=response.status;
       throw error;
     }
     return payload;
@@ -3483,15 +3600,13 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
   async function startArtistPlayback(profile, ui) {
     if (!webPlayer || !webDeviceId) await ensureWebPlayer();
-
-    // Required on iOS/Safari and other browsers with strict autoplay policies.
     try { webPlayer.activateElement(); } catch {}
 
-    activePremiumUi = ui;
-    ui.controls.hidden = false;
-    ui.now.textContent = 'Iniciando reproducción completa…';
+    activePremiumUi=ui;
+    ui.status.textContent='Iniciando reproducción completa…';
+    ui.main.disabled=true;
 
-    const play = () => userPlaybackRequest(
+    const play=() => userPlaybackRequest(
       `/me/player/play?device_id=${encodeURIComponent(webDeviceId)}`,
       {method:'PUT', body:{context_uri:`spotify:artist:${profile.id}`}}
     );
@@ -3500,140 +3615,164 @@ resolveAct = async function resolveActSafely(name, force = false) {
       await play();
     } catch (error) {
       if (error.status !== 404) throw error;
-      await userPlaybackRequest('/me/player', {
+      await userPlaybackRequest('/me/player',{
         method:'PUT',
-        body:{device_ids:[webDeviceId], play:false}
+        body:{device_ids:[webDeviceId],play:false}
       });
-      await new Promise(resolve => window.setTimeout(resolve, 350));
+      await new Promise(resolve => window.setTimeout(resolve,350));
       await play();
+    } finally {
+      ui.main.disabled=false;
     }
   }
 
   function addFallbackItem(item, profile, note) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'artist-player-load';
-    button.innerHTML = '<span aria-hidden="true">▶</span><span>Escuchar aquí<small>Carga el reproductor de Spotify</small></span>';
-    button.addEventListener('click', () => loadEmbed(item, profile));
+    const button=document.createElement('button');
+    button.type='button';
+    button.className='artist-player-load';
+    button.innerHTML='<span aria-hidden="true">▶</span><span>Escuchar aquí<small>Carga el reproductor de Spotify</small></span>';
+    button.addEventListener('click',() => loadEmbed(item,profile));
     item.appendChild(button);
 
     if (note) {
-      const hint = document.createElement('p');
-      hint.className = 'artist-player-hint';
-      hint.textContent = note;
+      const hint=document.createElement('p');
+      hint.className='artist-player-hint';
+      hint.textContent=note;
       item.appendChild(hint);
     }
   }
 
+  function fallbackPremiumItem(item, profile, message) {
+    item.replaceChildren();
+    addFallbackItem(item,profile,message || 'No se pudo iniciar Spotify Premium en este navegador.');
+  }
+
   function addPremiumItem(item, profile) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'artist-player-load';
-    button.disabled = true;
-    button.innerHTML = '<span aria-hidden="true">▶</span><span>Preparando Spotify…<small>Reproducción completa con Premium</small></span>';
-    item.appendChild(button);
+    const card=document.createElement('div');
+    card.className='artist-premium-card';
 
-    const controls = document.createElement('div');
-    controls.className = 'artist-premium-controls';
-    controls.hidden = true;
-    controls.innerHTML = `
-      <div class="artist-premium-now">Spotify Premium<small>Festivalfy Player</small></div>
-      <div class="artist-premium-buttons">
-        <button type="button" class="premium-prev" aria-label="Anterior">‹‹</button>
-        <button type="button" class="premium-toggle" aria-label="Pausar o continuar">▶</button>
-        <button type="button" class="premium-next" aria-label="Siguiente">››</button>
-      </div>`;
-    item.appendChild(controls);
+    const initialCover=profile.image || '';
+    card.innerHTML=`
+      <div class="artist-premium-top">
+        <div class="artist-premium-cover" data-src="${escapeHtml(initialCover)}">
+          ${initialCover ? `<img src="${escapeHtml(initialCover)}" alt="">` : ''}
+        </div>
+        <div class="artist-premium-copy">
+          <div class="artist-premium-title">${escapeHtml(profile.name || 'Spotify')}</div>
+          <div class="artist-premium-artist">Escuchar canciones completas</div>
+          <span class="artist-premium-brand">Spotify Premium</span>
+        </div>
+        <button class="artist-premium-main" type="button" aria-label="Reproducir">▶</button>
+      </div>
+      <div class="artist-premium-progress">
+        <span class="premium-position">0:00</span>
+        <span class="artist-premium-track"><span class="artist-premium-fill"></span></span>
+        <span class="premium-duration">0:00</span>
+      </div>
+      <div class="artist-premium-controls">
+        <button class="artist-premium-skip premium-prev" type="button" aria-label="Anterior">‹‹</button>
+        <span class="artist-premium-status">Preparando Spotify…</span>
+        <button class="artist-premium-skip premium-next" type="button" aria-label="Siguiente">››</button>
+      </div>
+    `;
+    item.appendChild(card);
 
-    const ui = {
-      controls,
-      now: controls.querySelector('.artist-premium-now'),
-      toggle: controls.querySelector('.premium-toggle')
+    const ui={
+      card,
+      cover:card.querySelector('.artist-premium-cover'),
+      title:card.querySelector('.artist-premium-title'),
+      artist:card.querySelector('.artist-premium-artist'),
+      main:card.querySelector('.artist-premium-main'),
+      position:card.querySelector('.premium-position'),
+      duration:card.querySelector('.premium-duration'),
+      fill:card.querySelector('.artist-premium-fill'),
+      status:card.querySelector('.artist-premium-status'),
+      fallbackImage:initialCover,
+      profileName:profile.name || '',
+      started:false
     };
 
-    controls.querySelector('.premium-prev').addEventListener('click', () => webPlayer?.previousTrack());
-    ui.toggle.addEventListener('click', () => webPlayer?.togglePlay());
-    controls.querySelector('.premium-next').addEventListener('click', () => webPlayer?.nextTrack());
+    card.querySelector('.premium-prev').addEventListener('click', async () => {
+      if (!webPlayer) return;
+      try { await webPlayer.previousTrack(); } catch {}
+    });
+    card.querySelector('.premium-next').addEventListener('click', async () => {
+      if (!webPlayer) return;
+      try { await webPlayer.nextTrack(); } catch {}
+    });
 
-    button.addEventListener('click', async () => {
-      if (webPlayer) {
-        try { webPlayer.activateElement(); } catch {}
-      }
-      button.disabled = true;
+    ui.main.addEventListener('click', async () => {
       try {
-        await startArtistPlayback(profile, ui);
-        button.innerHTML = '<span aria-hidden="true">●</span><span>Reproduciendo en Festivalfy<small>Spotify Premium</small></span>';
+        if (webPlayer) {
+          try { webPlayer.activateElement(); } catch {}
+        }
+
+        if (!ui.started) {
+          await startArtistPlayback(profile,ui);
+          ui.started=true;
+          ui.status.textContent='Spotify Premium · reproducción completa';
+          return;
+        }
+
+        activePremiumUi=ui;
+        await webPlayer.togglePlay();
       } catch (error) {
-        console.error('Festivalfy Premium playback failed', error);
-        button.disabled = false;
-        button.innerHTML = '<span aria-hidden="true">▶</span><span>Reintentar reproducción<small>Spotify Premium</small></span>';
-        ui.controls.hidden = false;
-        ui.now.textContent = error.message || 'No se pudo iniciar la reproducción completa.';
+        console.error('Festivalfy Premium playback failed',error);
+        fallbackPremiumItem(item,profile,error.message || 'No se pudo iniciar la reproducción completa.');
       }
     });
 
     ensureWebPlayer().then(() => {
-      button.disabled = false;
-      button.innerHTML = '<span aria-hidden="true">▶</span><span>Escuchar completo<small>Spotify Premium conectado</small></span>';
+      ui.status.textContent='Spotify Premium · listo';
+      ui.main.disabled=false;
     }).catch(error => {
-      const fallback = document.createElement('button');
-      fallback.type = 'button';
-      fallback.className = 'artist-player-load';
-      fallback.innerHTML = '<span aria-hidden="true">▶</span><span>Escuchar muestra<small>Spotify no pudo iniciar el reproductor Premium</small></span>';
-      fallback.addEventListener('click', () => loadEmbed(item, profile));
-      button.replaceWith(fallback);
-
-      const hint = document.createElement('p');
-      hint.className = 'artist-player-hint';
-      hint.textContent = error.message || 'No se pudo iniciar Spotify Premium en este navegador.';
-      item.appendChild(hint);
+      fallbackPremiumItem(item,profile,error.message || 'No se pudo iniciar Spotify Premium en este navegador.');
     });
   }
 
   function renderPlayer(name) {
-    const entry = cache[name];
-    const list = (entry?.profiles || []).filter(profile => profile && profile.id).slice(0, 3);
+    const entry=cache[name];
+    const list=(entry?.profiles || []).filter(profile => profile && profile.id).slice(0,3);
     playerRoot.replaceChildren();
+    activePremiumUi=null;
     if (!list.length) return;
 
-    const connected = isUserSpotifyConnected();
-    const hasScopes = connected && userSpotifyHasPlaybackScopes();
-    const userProfile = cachedUserSpotifyProfile();
+    const connected=isUserSpotifyConnected();
+    const hasScopes=connected && userSpotifyHasPlaybackScopes();
 
     for (const profile of list) {
-      const item = document.createElement('div');
-      item.className = 'artist-player-item';
+      const item=document.createElement('div');
+      item.className='artist-player-item';
 
       if (list.length > 1) {
-        const label = document.createElement('span');
-        label.className = 'artist-player-label';
-        label.textContent = profile.name || '';
+        const label=document.createElement('span');
+        label.className='artist-player-label';
+        label.textContent=profile.name || '';
         item.appendChild(label);
       }
 
       if (!connected) {
-        addFallbackItem(item, profile, 'Conecta Spotify desde Perfil para activar reproducción completa con una cuenta Premium.');
+        addFallbackItem(item,profile,'Conecta Spotify desde Perfil para activar reproducción completa con una cuenta Premium.');
       } else if (!hasScopes) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'artist-player-load';
-        button.innerHTML = '<span aria-hidden="true">●</span><span>Activar reproducción completa<small>Actualiza los permisos desde Perfil</small></span>';
-        button.addEventListener('click', () => {
+        const button=document.createElement('button');
+        button.type='button';
+        button.className='artist-player-load';
+        button.innerHTML='<span aria-hidden="true">●</span><span>Activar reproducción completa<small>Actualiza los permisos desde Perfil</small></span>';
+        button.addEventListener('click',() => {
           openProfile();
           toast('Activa la reproducción completa de Spotify desde Perfil');
         });
         item.appendChild(button);
       } else {
-        addPremiumItem(item, profile);
+        addPremiumItem(item,profile);
       }
 
       playerRoot.appendChild(item);
     }
-
   }
 
-  const openArtistBase = openArtist;
-  openArtist = function openArtistWithPlayer(artistName) {
+  const openArtistBase=openArtist;
+  openArtist=function openArtistWithPlayer(artistName) {
     openArtistBase(artistName);
     renderPlayer(artistName);
   };

@@ -56,7 +56,7 @@ En **Mi cartel** hay un botón *Compartir mi cartel*. Genera un enlace del tipo 
 
 La selección viaja **dentro del propio enlace**: no hay servidor, cuentas ni base de datos para compartirla. El cartel se codifica como un mapa de bits compacto.
 
-Quien abra el enlace ve la pantalla *Comparar carteles*, con tres grupos: artistas en común, solo en el cartel compartido y solo en el suyo. Desde cualquiera de ellos se puede abrir la ficha del artista. Durante esa visita, la comparación sigue accesible desde *Ver comparación* en Mi cartel.
+Quien abra el enlace puede poner un nombre al cartel recibido y Festivalfy lo guarda en **Mi cartel con amigos**. Se pueden conservar hasta 50 carteles por dispositivo. Cada tarjeta muestra el nombre, el número de artistas y cuántos coinciden con tu propio cartel. Al abrir una tarjeta aparece la comparación con tres grupos: artistas en común, solo en el cartel del amigo y solo en el tuyo. Los carteles guardados se pueden renombrar o eliminar.
 
 Los enlaces llevan una huella del catálogo. Si cambia el conjunto de actuaciones, un enlace antiguo se rechaza con un aviso en lugar de arriesgarse a mostrar artistas equivocados.
 

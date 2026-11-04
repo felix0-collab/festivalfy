@@ -4008,7 +4008,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
 /* ===== cartel-share.js ===== */
 'use strict';
-(function cartelShareInstaller() {
+(function multiFriendCartelsInstaller() {
   const saved = window.FestivalfySaved;
   const bottomNav = document.querySelector('.bottom-nav');
   const savedScreen = document.getElementById('savedScreen');
@@ -4016,7 +4016,8 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
   const PARAM = 'cartel';
   const FORMAT = '1';
-
+  const FRIENDS_KEY = 'festivalfy_friend_cartels_v1';
+  const MAX_FRIENDS = 50;
   const index = [...allArtists()].sort((a, b) => a.localeCompare(b, 'es'));
 
   function catalogFingerprint() {
@@ -4072,11 +4073,73 @@ resolveAct = async function resolveActSafely(name, force = false) {
     return url.toString();
   }
 
+  function sanitizeFriend(friend) {
+    if (!friend || typeof friend !== 'object') return null;
+    const name = String(friend.name || '').trim().slice(0, 40);
+    const names = Array.isArray(friend.names)
+      ? [...new Set(friend.names.filter(artist => index.includes(artist)))]
+      : [];
+    if (!name || !names.length) return null;
+    return {
+      id: String(friend.id || `${Date.now()}-${Math.random().toString(36).slice(2,8)}`),
+      name,
+      names,
+      addedAt: Number(friend.addedAt) || Date.now()
+    };
+  }
+
+  function loadFriends() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(FRIENDS_KEY) || '[]');
+      return Array.isArray(parsed) ? parsed.map(sanitizeFriend).filter(Boolean).slice(0, MAX_FRIENDS) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  let friends = loadFriends();
+  let activeFriendId = null;
+  let incomingError = null;
+
+  function saveFriends() {
+    localStorage.setItem(FRIENDS_KEY, JSON.stringify(friends.slice(0, MAX_FRIENDS)));
+  }
+
+  function normalizeName(name) {
+    return String(name || '').trim().toLocaleLowerCase('es');
+  }
+
+  function overlapCount(friendNames) {
+    const mine = new Set(saved.list());
+    return friendNames.reduce((count, artist) => count + (mine.has(artist) ? 1 : 0), 0);
+  }
+
+  function addOrUpdateFriend(name, names) {
+    const cleanName = String(name || '').trim().slice(0, 40) || 'Amigo';
+    const existing = friends.find(friend => normalizeName(friend.name) === normalizeName(cleanName));
+
+    if (existing) {
+      existing.names = [...new Set(names)];
+      existing.addedAt = Date.now();
+      activeFriendId = existing.id;
+    } else {
+      const friend = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+        name: cleanName,
+        names: [...new Set(names)],
+        addedAt: Date.now()
+      };
+      friends.unshift(friend);
+      activeFriendId = friend.id;
+      if (friends.length > MAX_FRIENDS) friends = friends.slice(0, MAX_FRIENDS);
+    }
+
+    saveFriends();
+  }
+
   const style = document.createElement('style');
   style.textContent = `
-    .saved-friends-section {
-      padding-bottom:4px;
-    }
+    .saved-friends-section { padding-bottom:4px; }
     .saved-friends-intro {
       margin:0 0 14px;
       color:#9f95a5;
@@ -4087,7 +4150,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
       display:flex;
       flex-wrap:wrap;
       gap:10px;
-      margin:0;
+      margin:0 0 16px;
     }
     .saved-share button {
       display:inline-flex;
@@ -4105,7 +4168,83 @@ resolveAct = async function resolveActSafely(name, force = false) {
     }
     .saved-share button:active { background:#221c28; }
     .saved-share button.primary { border-color:#d7a0f4; color:#f6ecfc; }
-    .saved-share button[hidden] { display:none; }
+
+    .friend-cartels {
+      display:grid;
+      gap:10px;
+      margin-top:8px;
+    }
+    .friend-cartel-card {
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      gap:10px;
+      align-items:center;
+      padding:13px 13px 13px 15px;
+      border:1px solid #302738;
+      border-radius:16px;
+      background:#151119;
+    }
+    .friend-cartel-main {
+      min-width:0;
+      border:0;
+      padding:0;
+      background:transparent;
+      color:#fff;
+      cursor:pointer;
+      text-align:left;
+    }
+    .friend-cartel-main strong {
+      display:block;
+      overflow:hidden;
+      font-size:16px;
+      font-weight:900;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .friend-cartel-main span {
+      display:block;
+      margin-top:4px;
+      color:#9f95a5;
+      font-size:12px;
+      font-weight:700;
+      line-height:1.4;
+    }
+    .friend-cartel-main b {
+      color:#d7a0f4;
+      font-weight:900;
+    }
+    .friend-cartel-actions {
+      display:flex;
+      gap:6px;
+    }
+    .friend-cartel-actions button {
+      display:grid;
+      place-items:center;
+      width:34px;
+      height:34px;
+      border:1px solid #3a3041;
+      border-radius:999px;
+      background:#1d1822;
+      color:#b9aebf;
+      cursor:pointer;
+      font-size:15px;
+      font-weight:900;
+    }
+    .friends-empty {
+      padding:18px 15px;
+      border:1px dashed #3b3242;
+      border-radius:15px;
+      color:#938999;
+      font-size:13px;
+      line-height:1.5;
+    }
+    .friends-limit {
+      margin:10px 2px 0;
+      color:#756d7a;
+      font-size:10px;
+      line-height:1.4;
+    }
+
     .compare-summary {
       padding:16px;
       border:1px solid #2e2635;
@@ -4183,27 +4322,20 @@ resolveAct = async function resolveActSafely(name, force = false) {
   shareButton.className = 'primary';
   shareButton.textContent = 'Compartir mi cartel';
 
-  const compareButton = document.createElement('button');
-  compareButton.type = 'button';
-  compareButton.textContent = 'Ver comparación';
-  compareButton.hidden = true;
+  shareBar.appendChild(shareButton);
 
-  shareBar.append(shareButton, compareButton);
+  const friendsSection = savedScreen.querySelector('.saved-friends-section');
+  if (!friendsSection) return;
 
-  const friendsSection = document.createElement('section');
-  friendsSection.className = 'saved-section saved-friends-section';
-  friendsSection.setAttribute('aria-labelledby', 'savedFriendsTitle');
-  friendsSection.innerHTML = `
-    <div class="saved-section-heading">
-      <div>
-        <span class="saved-section-kicker">Compartir y comparar</span>
-        <h2 id="savedFriendsTitle">Mi cartel con amigos</h2>
-      </div>
-    </div>
-    <p class="saved-friends-intro">Comparte tu selección con tus amigos y descubre qué artistas tenéis en común.</p>
-  `;
-  friendsSection.appendChild(shareBar);
-  savedScreen.querySelector('.saved-content').appendChild(friendsSection);
+  const friendsList = document.createElement('div');
+  friendsList.className = 'friend-cartels';
+  friendsList.id = 'friendCartels';
+
+  const limitNote = document.createElement('p');
+  limitNote.className = 'friends-limit';
+  limitNote.textContent = `Puedes guardar hasta ${MAX_FRIENDS} carteles de amigos en este dispositivo.`;
+
+  friendsSection.append(shareBar, friendsList, limitNote);
 
   shareButton.addEventListener('click', async () => {
     const names = saved.list();
@@ -4226,18 +4358,16 @@ resolveAct = async function resolveActSafely(name, force = false) {
     }
   });
 
-  compareButton.addEventListener('click', () => openCompareScreen());
-
   const compareScreen = document.createElement('section');
   compareScreen.id = 'compareScreen';
   compareScreen.className = 'screen';
   compareScreen.setAttribute('aria-label', 'Comparar carteles');
   compareScreen.innerHTML = `
     <header class="lineup-header">
-      <button class="back-button" id="compareBack" type="button" aria-label="Volver a Mi cartel">‹</button>
+      <button class="back-button" id="compareBack" type="button" aria-label="Volver a Mis carteles">‹</button>
       <div>
         <small>Primavera Sound 2027</small>
-        <h1>Comparar carteles</h1>
+        <h1 id="compareTitle">Comparar carteles</h1>
       </div>
     </header>
     <div class="page-content">
@@ -4248,7 +4378,61 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
   compareScreen.querySelector('#compareBack').addEventListener('click', () => saved.openScreen());
 
-  let sharedSelection = null;
+  function renderFriends() {
+    if (!friendsList) return;
+
+    if (!friends.length) {
+      friendsList.innerHTML = `
+        <div class="friends-empty">
+          Todavía no tienes carteles de amigos guardados. Cuando abras el enlace que te envíe un amigo, aparecerá aquí.
+        </div>`;
+      return;
+    }
+
+    friendsList.innerHTML = friends.map(friend => {
+      const common = overlapCount(friend.names);
+      return `
+        <article class="friend-cartel-card" data-friend-id="${escapeHtml(friend.id)}">
+          <button class="friend-cartel-main" type="button" data-open-friend="${escapeHtml(friend.id)}">
+            <strong>${escapeHtml(friend.name)}</strong>
+            <span>${friend.names.length} ${friend.names.length === 1 ? 'artista' : 'artistas'} · <b>${common} ${common === 1 ? 'en común' : 'en común'}</b></span>
+          </button>
+          <div class="friend-cartel-actions">
+            <button type="button" data-rename-friend="${escapeHtml(friend.id)}" aria-label="Renombrar cartel de ${escapeHtml(friend.name)}">✎</button>
+            <button type="button" data-delete-friend="${escapeHtml(friend.id)}" aria-label="Eliminar cartel de ${escapeHtml(friend.name)}">×</button>
+          </div>
+        </article>`;
+    }).join('');
+
+    friendsList.querySelectorAll('[data-open-friend]').forEach(button => {
+      button.addEventListener('click', () => openCompareScreen(button.dataset.openFriend));
+    });
+
+    friendsList.querySelectorAll('[data-rename-friend]').forEach(button => {
+      button.addEventListener('click', () => {
+        const friend = friends.find(item => item.id === button.dataset.renameFriend);
+        if (!friend) return;
+        const next = window.prompt('Nombre para este cartel:', friend.name);
+        if (!next || !next.trim()) return;
+        friend.name = next.trim().slice(0, 40);
+        saveFriends();
+        renderFriends();
+      });
+    });
+
+    friendsList.querySelectorAll('[data-delete-friend]').forEach(button => {
+      button.addEventListener('click', () => {
+        const friend = friends.find(item => item.id === button.dataset.deleteFriend);
+        if (!friend) return;
+        if (!window.confirm(`¿Eliminar el cartel de ${friend.name}?`)) return;
+        friends = friends.filter(item => item.id !== friend.id);
+        if (activeFriendId === friend.id) activeFriendId = null;
+        saveFriends();
+        renderFriends();
+        toast('Cartel eliminado');
+      });
+    });
+  }
 
   function groupByDay(names) {
     const chosen = new Set(names);
@@ -4292,20 +4476,26 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
   function renderCompare() {
     const content = compareScreen.querySelector('#compareContent');
+    const title = compareScreen.querySelector('#compareTitle');
 
-    if (!sharedSelection) {
-      content.innerHTML = '<div class="compare-empty">Todavía no has abierto ningún cartel compartido. Pide a tu amigo que te mande su enlace.</div>';
+    if (incomingError) {
+      title.textContent = 'Comparar carteles';
+      content.innerHTML = `<div class="compare-error">${escapeHtml(incomingError === 'outdated'
+        ? 'Este enlace se creó con una versión anterior del cartel. Pide a tu amigo que vuelva a compartirlo.'
+        : 'No hemos podido leer este enlace. Pide a tu amigo que vuelva a compartirlo.')}</div>`;
       return;
     }
 
-    if (sharedSelection.error) {
-      content.innerHTML = `<div class="compare-error">${escapeHtml(sharedSelection.error === 'outdated'
-        ? 'Este enlace se creó con una versión anterior del cartel, así que no podemos comparar sin riesgo de mostrar artistas equivocados. Pide a tu amigo que vuelva a compartir su cartel.'
-        : 'No hemos podido leer este enlace. Puede que se haya cortado al copiarlo. Pide a tu amigo que vuelva a compartirlo.')}</div>`;
+    const friend = friends.find(item => item.id === activeFriendId);
+    if (!friend) {
+      title.textContent = 'Comparar carteles';
+      content.innerHTML = '<div class="compare-empty">Selecciona uno de los carteles guardados en “Mi cartel con amigos”.</div>';
       return;
     }
 
-    const theirs = sharedSelection.names;
+    title.textContent = `${friend.name} y tú`;
+
+    const theirs = friend.names;
     const mine = saved.list();
     const mineSet = new Set(mine);
     const theirsSet = new Set(theirs);
@@ -4317,16 +4507,16 @@ resolveAct = async function resolveActSafely(name, force = false) {
     const summary = mine.length
       ? `<div class="compare-summary">
           <strong>${both.length}</strong>
-          <span>${both.length === 1 ? 'artista en común' : 'artistas en común'}. Su cartel tiene ${theirs.length} y el tuyo ${mine.length}.</span>
+          <span>${both.length === 1 ? 'artista en común' : 'artistas en común'}. ${friend.name} tiene ${theirs.length} y tú ${mine.length}.</span>
         </div>`
       : `<div class="compare-summary">
           <strong>${theirs.length}</strong>
-          <span>${theirs.length === 1 ? 'artista en su cartel' : 'artistas en su cartel'}. Todavía no has guardado ninguno, así que marca los que te interesen con el corazón y vuelve aquí.</span>
+          <span>${friend.name} tiene ${theirs.length} ${theirs.length === 1 ? 'artista' : 'artistas'}. Todavía no has guardado ninguno.</span>
         </div>`;
 
     content.innerHTML = summary
-      + groupBlock('Coincidís', 'Los artistas que estáis los dos.', both)
-      + groupBlock('Solo en su cartel', 'Ideas para descubrir.', onlyTheirs)
+      + groupBlock('Coincidís', 'Los artistas que habéis guardado los dos.', both)
+      + groupBlock(`Solo en el cartel de ${friend.name}`, 'Ideas para descubrir.', onlyTheirs)
       + groupBlock('Solo en el tuyo', 'Los que has guardado tú.', onlyMine);
 
     content.querySelectorAll('[data-compare-open]').forEach(button => {
@@ -4334,7 +4524,9 @@ resolveAct = async function resolveActSafely(name, force = false) {
     });
   }
 
-  function openCompareScreen() {
+  function openCompareScreen(friendId) {
+    if (friendId) activeFriendId = friendId;
+    incomingError = null;
     renderCompare();
     showScreen('compare');
     $all('.nav-item').forEach(button => button.classList.remove('active'));
@@ -4346,21 +4538,48 @@ resolveAct = async function resolveActSafely(name, force = false) {
     const artistBack = oldBack.cloneNode(true);
     oldBack.replaceWith(artistBack);
     artistBack.addEventListener('click', () => {
-      if (previousScreen === 'compare') openCompareScreen();
+      if (previousScreen === 'compare') openCompareScreen(activeFriendId);
       else if (previousScreen === 'saved') saved.openScreen();
       else if (previousScreen === 'festival') openFestival();
       else openLineup(activeDay, {restore: true});
     });
   }
 
+  // Keep overlap counts fresh when the user changes their own cartel.
+  document.addEventListener('click', event => {
+    if (event.target.closest('[data-favorite-artist]')) {
+      window.requestAnimationFrame(renderFriends);
+    }
+  });
+
+  window.addEventListener('storage', event => {
+    if (event.key !== FRIENDS_KEY) return;
+    friends = loadFriends();
+    renderFriends();
+  });
+
   const params = new URLSearchParams(window.location.search);
   const incoming = params.get(PARAM);
   if (incoming) {
-    sharedSelection = decodeSelection(incoming);
-    compareButton.hidden = false;
+    const decoded = decodeSelection(incoming);
     params.delete(PARAM);
     const clean = `${window.location.pathname}${params.toString() ? `?${params}` : ''}${window.location.hash}`;
     window.history.replaceState({}, '', clean);
-    window.setTimeout(openCompareScreen, 0);
+
+    if (decoded.error) {
+      incomingError = decoded.error;
+      window.setTimeout(() => {
+        renderCompare();
+        showScreen('compare');
+      }, 0);
+    } else {
+      const suggested = `Amigo ${friends.length + 1}`;
+      const friendName = window.prompt('¿De quién es este cartel?', suggested);
+      addOrUpdateFriend(friendName || suggested, decoded.names);
+      renderFriends();
+      window.setTimeout(() => openCompareScreen(activeFriendId), 0);
+    }
   }
+
+  renderFriends();
 })();

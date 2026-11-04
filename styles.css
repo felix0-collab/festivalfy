@@ -346,3 +346,66 @@ button { -webkit-tap-highlight-color: transparent; }
   .app-shell { min-height: 860px; border: 1px solid #2b2530; border-radius: 31px; box-shadow: 0 35px 100px #000; }
   .bottom-nav { bottom: 24px; border-radius: 0 0 31px 31px; }
 }
+
+
+/* Festivalfy UI refinement: centered filters + compact artist detail */
+#lineupScreen .filter-bar {
+  position: relative;
+  justify-content: center;
+  min-height: 40px;
+}
+#lineupScreen .filter-toggle {
+  margin-inline: auto;
+}
+#lineupScreen .filter-clear {
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+#artistScreen .artist-detail-hero {
+  height: clamp(250px, 34svh, 310px);
+  background-position: center 24%;
+}
+#artistScreen .artist-detail-content {
+  padding: 14px 20px 28px;
+}
+#artistScreen .artist-title-row {
+  margin: 5px 0 8px;
+}
+#artistScreen .artist-title-row #artistDetailName {
+  font-size: clamp(31px, 8.5vw, 36px);
+  line-height: .98;
+}
+#artistScreen .artist-country-code {
+  font-size: 15px;
+}
+#artistScreen .artist-metadata {
+  min-height: 24px;
+  margin-bottom: 11px;
+}
+#artistScreen .artist-genre-list {
+  gap: 6px;
+}
+#artistScreen .artist-genre {
+  min-height: 25px;
+  padding: 4px 9px;
+  font-size: 11px;
+}
+#artistScreen .profile-links {
+  margin-top: 10px;
+}
+#artistScreen .profile-link {
+  padding: 12px 16px;
+}
+#artistScreen .artist-player {
+  margin-top: 10px;
+}
+@media (max-height: 720px) {
+  #artistScreen .artist-detail-hero {
+    height: 230px;
+  }
+  #artistScreen .artist-detail-content {
+    padding-top: 11px;
+  }
+}

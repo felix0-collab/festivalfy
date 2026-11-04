@@ -52,9 +52,11 @@ Los géneros del catálogo se agrupan en siete familias definidas en `GENRE_FAMI
 
 ## Radio del festival dinámica
 
-La acción principal de **Radio del festival** crea dentro de Festivalfy una mezcla de hasta 50 canciones de perfiles de Spotify verificados del cartel. Antes de aceptar una canción, el código comprueba que el ID del artista de la canción coincide exactamente con el perfil publicado. La mezcla intenta usar un artista distinto por canción antes de repetir, desactiva el modo aleatorio de Spotify y envía una lista explícita de URIs al reproductor Premium.
+La acción principal de **Radio del festival** crea dentro de Festivalfy una mezcla de hasta 50 canciones de perfiles de Spotify verificados del cartel. Antes de aceptar una canción, el código comprueba que el ID del artista de la canción coincide exactamente con el perfil publicado. La mezcla intenta usar un artista distinto por canción antes de repetir.
 
-La primera mezcla puede requerir consultas al catálogo de Spotify. Las canciones verificadas encontradas se conservan en memoria durante la sesión para acelerar las siguientes mezclas. *Nueva mezcla* vuelve a elegir artistas/canciones y cambia el orden. La playlist pública existente sigue disponible como alternativa mediante *Abrir playlist en Spotify*.
+La generación es progresiva: en cuanto se encuentra la primera canción válida, Festivalfy empieza a reproducirla y continúa buscando y añadiendo el resto mediante la cola de Spotify. Así no es necesario esperar a tener las 50 canciones antes de escuchar. Si el usuario inicia manualmente otro artista o genera una nueva mezcla, la generación anterior se cancela para no contaminar la nueva reproducción.
+
+Las canciones verificadas encontradas se conservan en memoria durante la sesión para acelerar las siguientes mezclas. Al tocar el mini reproductor mientras suena la Radio, Festivalfy abre la ficha de la actuación correspondiente al artista que está sonando, desde donde puede guardarse en *Mi cartel*. *Nueva mezcla* vuelve a elegir artistas/canciones. La playlist pública existente sigue disponible como alternativa mediante *Abrir playlist en Spotify*.
 
 ## Compartir y comparar carteles
 

@@ -5405,6 +5405,162 @@ resolveAct = async function resolveActSafely(name, force = false) {
     .saved-share button:active { background:#221c28; }
     .saved-share button.primary { border-color:#d7a0f4; color:#f6ecfc; }
 
+    .saved-poster-cta {
+      display:grid;
+      grid-template-columns:48px minmax(0,1fr) auto;
+      align-items:center;
+      gap:12px;
+      margin:14px 0 22px;
+      padding:14px;
+      border:1px solid rgba(215,160,244,.24);
+      border-radius:18px;
+      background:
+        radial-gradient(circle at 88% 14%,rgba(215,160,244,.13),transparent 34%),
+        linear-gradient(145deg,#19131f,#121016 72%);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.025);
+    }
+    .saved-poster-icon {
+      display:grid;
+      width:48px;
+      height:48px;
+      place-items:center;
+      border:1px solid rgba(215,160,244,.28);
+      border-radius:14px;
+      background:#24182b;
+      color:#e3b8f8;
+      font-size:21px;
+      font-weight:900;
+    }
+    .saved-poster-copy { min-width:0; }
+    .saved-poster-copy strong {
+      display:block;
+      color:#f7f2f9;
+      font-size:14px;
+      font-weight:900;
+    }
+    .saved-poster-copy span {
+      display:block;
+      margin-top:4px;
+      color:#958a9b;
+      font-size:11px;
+      font-weight:700;
+      line-height:1.4;
+    }
+    .saved-poster-button {
+      min-height:40px;
+      padding:9px 13px;
+      border:1px solid #d7a0f4;
+      border-radius:999px;
+      background:#261b2d;
+      color:#f5e9fb;
+      cursor:pointer;
+      font-size:12px;
+      font-weight:900;
+      white-space:nowrap;
+    }
+    .saved-poster-button:disabled { cursor:wait; opacity:.58; }
+
+    .festivalfy-poster-dialog {
+      width:min(94vw,520px);
+      max-height:92vh;
+      overflow:auto;
+      border:1px solid #3b3043;
+      border-radius:22px;
+      padding:0;
+      background:#111014;
+      color:#fff;
+      box-shadow:0 28px 80px rgba(0,0,0,.58);
+    }
+    .festivalfy-poster-dialog::backdrop {
+      background:rgba(5,4,7,.78);
+      backdrop-filter:blur(7px);
+    }
+    .poster-dialog-head {
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:18px;
+      padding:18px 18px 14px;
+    }
+    .poster-dialog-head small {
+      display:block;
+      color:#c995e2;
+      font-size:10px;
+      font-weight:900;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+    }
+    .poster-dialog-head h2 {
+      margin:4px 0 0;
+      font-size:20px;
+      letter-spacing:-.35px;
+    }
+    .poster-dialog-close {
+      display:grid;
+      flex:0 0 36px;
+      width:36px;
+      height:36px;
+      place-items:center;
+      border:1px solid #3b3242;
+      border-radius:999px;
+      background:#1a161e;
+      color:#cbbfce;
+      cursor:pointer;
+      font-size:20px;
+    }
+    .poster-preview-wrap {
+      padding:0 14px;
+    }
+    .poster-preview-wrap img {
+      display:block;
+      width:100%;
+      max-height:62vh;
+      object-fit:contain;
+      border:1px solid rgba(255,255,255,.07);
+      border-radius:16px;
+      background:#0b0910;
+      box-shadow:0 12px 30px rgba(0,0,0,.34);
+    }
+    .poster-dialog-note {
+      margin:12px 17px 0;
+      color:#8f8594;
+      font-size:11px;
+      line-height:1.45;
+    }
+    .poster-dialog-actions {
+      display:grid;
+      grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+      gap:9px;
+      padding:15px 14px 18px;
+    }
+    .poster-dialog-actions button {
+      min-height:46px;
+      border-radius:999px;
+      cursor:pointer;
+      font-size:13px;
+      font-weight:900;
+    }
+    .poster-share-primary {
+      border:0;
+      background:#d7a0f4;
+      color:#1b1320;
+    }
+    .poster-save-secondary {
+      border:1px solid #403547;
+      background:#1b171f;
+      color:#e8dfea;
+    }
+    @media(max-width:420px) {
+      .saved-poster-cta {
+        grid-template-columns:44px minmax(0,1fr);
+      }
+      .saved-poster-icon { width:44px; height:44px; }
+      .saved-poster-button {
+        grid-column:1/-1;
+        width:100%;
+      }
+    }
+
     .friend-cartels {
       display:grid;
       gap:10px;
@@ -5559,6 +5715,365 @@ resolveAct = async function resolveActSafely(name, force = false) {
   shareButton.textContent = 'Compartir mi cartel';
 
   shareBar.appendChild(shareButton);
+
+  const personalSection=savedScreen.querySelector('.saved-section-personal');
+  const savedSummary=personalSection?.querySelector('#savedSummary');
+  const posterCta=document.createElement('div');
+  posterCta.className='saved-poster-cta';
+  posterCta.innerHTML=`
+    <span class="saved-poster-icon" aria-hidden="true">▣</span>
+    <span class="saved-poster-copy">
+      <strong>Tu cartel en una imagen</strong>
+      <span>Crea un póster vertical con tu selección para compartirlo o guardarlo.</span>
+    </span>
+    <button class="saved-poster-button" type="button">Crear imagen</button>
+  `;
+  savedSummary?.after(posterCta);
+
+  const posterButton=posterCta.querySelector('.saved-poster-button');
+  const posterDialog=document.createElement('dialog');
+  posterDialog.className='festivalfy-poster-dialog';
+  posterDialog.innerHTML=`
+    <div class="poster-dialog-head">
+      <div>
+        <small>Mi cartel</small>
+        <h2>Tu póster está listo</h2>
+      </div>
+      <button class="poster-dialog-close" type="button" aria-label="Cerrar">×</button>
+    </div>
+    <div class="poster-preview-wrap">
+      <img class="poster-preview" alt="Vista previa de mi cartel">
+    </div>
+    <p class="poster-dialog-note">La imagen se genera en tu dispositivo y solo incluye los artistas que has guardado.</p>
+    <div class="poster-dialog-actions">
+      <button class="poster-share-primary" type="button">Compartir imagen</button>
+      <button class="poster-save-secondary" type="button">Guardar PNG</button>
+    </div>
+  `;
+  document.body.appendChild(posterDialog);
+
+  const posterPreview=posterDialog.querySelector('.poster-preview');
+  const posterShareButton=posterDialog.querySelector('.poster-share-primary');
+  const posterSaveButton=posterDialog.querySelector('.poster-save-secondary');
+  let currentPosterBlob=null;
+  let currentPosterUrl='';
+
+  function posterDayMeta(day) {
+    return ({
+      'Mié 2':{label:'MIÉ 02 JUN',accent:'#d7a0f4'},
+      'Jue 3':{label:'JUE 03 JUN',accent:'#8dd6ff'},
+      'Vie 4':{label:'VIE 04 JUN',accent:'#ff9fb4'},
+      'Sáb 5':{label:'SÁB 05 JUN',accent:'#ffd38f'},
+      'Dom 6':{label:'DOM 06 JUN',accent:'#9ee8b5'}
+    })[day] || {label:String(day || '').toUpperCase(),accent:'#d7a0f4'};
+  }
+
+  function posterGroups(names) {
+    const chosen=new Set(names);
+    return Object.entries(FESTIVAL.days)
+      .map(([day,artists]) => [day,artists.filter(name => chosen.has(name))])
+      .filter(([,artists]) => artists.length);
+  }
+
+  function wrapPosterText(ctx,text,maxWidth) {
+    const words=String(text || '').split(/\s+/).filter(Boolean);
+    if (!words.length) return [''];
+    const lines=[];
+    let line=words.shift();
+
+    for (const word of words) {
+      const test=`${line} ${word}`;
+      if (ctx.measureText(test).width <= maxWidth) {
+        line=test;
+      } else {
+        lines.push(line);
+        line=word;
+      }
+    }
+    lines.push(line);
+    return lines;
+  }
+
+  function posterMetrics(ctx,groups,total,fontSize,columns) {
+    const margin=72;
+    const gap=28;
+    const colWidth=(1080 - margin*2 - gap*(columns-1)) / columns;
+    const lineHeight=Math.round(fontSize*1.22);
+    let y=342;
+
+    ctx.font=`800 ${fontSize}px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif`;
+
+    for (const [,artists] of groups) {
+      y+=54;
+      for (let index=0; index<artists.length; index+=columns) {
+        let rowLines=1;
+        for (let column=0; column<columns; column+=1) {
+          const name=artists[index+column];
+          if (!name) continue;
+          rowLines=Math.max(rowLines,wrapPosterText(ctx,name,colWidth-26).length);
+        }
+        y+=rowLines*lineHeight+17;
+      }
+      y+=24;
+    }
+
+    return {
+      margin,
+      gap,
+      colWidth,
+      lineHeight,
+      height:Math.max(1350,Math.ceil(y+118)),
+      total
+    };
+  }
+
+  function drawPosterBackground(ctx,width,height) {
+    const bg=ctx.createLinearGradient(0,0,width,height);
+    bg.addColorStop(0,'#0b0910');
+    bg.addColorStop(.56,'#15101a');
+    bg.addColorStop(1,'#08070b');
+    ctx.fillStyle=bg;
+    ctx.fillRect(0,0,width,height);
+
+    const glow=ctx.createRadialGradient(width*.87,80,10,width*.87,80,360);
+    glow.addColorStop(0,'rgba(215,160,244,.22)');
+    glow.addColorStop(1,'rgba(215,160,244,0)');
+    ctx.fillStyle=glow;
+    ctx.fillRect(0,0,width,height);
+
+    const glow2=ctx.createRadialGradient(40,height*.8,10,40,height*.8,460);
+    glow2.addColorStop(0,'rgba(95,69,117,.16)');
+    glow2.addColorStop(1,'rgba(95,69,117,0)');
+    ctx.fillStyle=glow2;
+    ctx.fillRect(0,0,width,height);
+
+    ctx.strokeStyle='rgba(255,255,255,.045)';
+    ctx.lineWidth=1;
+    for (let y=160;y<height;y+=160) {
+      ctx.beginPath();
+      ctx.moveTo(0,y);
+      ctx.lineTo(width,y);
+      ctx.stroke();
+    }
+  }
+
+  async function createCartelPoster(names) {
+    const groups=posterGroups(names);
+    if (!groups.length) throw new Error('Guarda algún artista antes de crear la imagen.');
+
+    const total=names.length;
+    const canvas=document.createElement('canvas');
+    canvas.width=1080;
+    canvas.height=1350;
+    let ctx=canvas.getContext('2d');
+    if (!ctx) throw new Error('Este navegador no puede generar la imagen.');
+
+    const columns=total <= 18 ? 2 : 3;
+    let fontSize=total <= 12 ? 34 : total <= 24 ? 29 : total <= 42 ? 25 : 21;
+    let metrics=posterMetrics(ctx,groups,total,fontSize,columns);
+
+    while (metrics.height > 2550 && fontSize > 18) {
+      fontSize-=1;
+      metrics=posterMetrics(ctx,groups,total,fontSize,columns);
+    }
+
+    canvas.height=metrics.height;
+    ctx=canvas.getContext('2d');
+    drawPosterBackground(ctx,canvas.width,canvas.height);
+
+    const family='-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif';
+    const margin=metrics.margin;
+
+    ctx.fillStyle='#d7a0f4';
+    ctx.font=`900 24px ${family}`;
+    ctx.letterSpacing='3px';
+    ctx.fillText('FESTIVALFY',margin,78);
+    ctx.letterSpacing='0px';
+
+    ctx.fillStyle='#ffffff';
+    ctx.font=`950 92px ${family}`;
+    ctx.fillText('MI CARTEL',margin,178);
+
+    ctx.fillStyle='#f0e9f3';
+    ctx.font=`900 34px ${family}`;
+    ctx.fillText('PRIMAVERA SOUND BARCELONA 2027',margin,230);
+
+    ctx.fillStyle='#8f8594';
+    ctx.font=`800 24px ${family}`;
+    ctx.fillText('2–6 JUN 2027',margin,274);
+
+    const countText=`${total} ${total === 1 ? 'ARTISTA' : 'ARTISTAS'}`;
+    ctx.font=`900 22px ${family}`;
+    const countWidth=ctx.measureText(countText).width+34;
+    ctx.fillStyle='#251a2c';
+    ctx.beginPath();
+    ctx.roundRect(1080-margin-countWidth,243,countWidth,45,22);
+    ctx.fill();
+    ctx.fillStyle='#dfb4f2';
+    ctx.fillText(countText,1080-margin-countWidth+17,273);
+
+    ctx.strokeStyle='rgba(255,255,255,.11)';
+    ctx.beginPath();
+    ctx.moveTo(margin,310);
+    ctx.lineTo(1080-margin,310);
+    ctx.stroke();
+
+    let y=342;
+    const columnsCount=columns;
+    const gap=metrics.gap;
+    const colWidth=metrics.colWidth;
+    const lineHeight=metrics.lineHeight;
+
+    for (const [day,artists] of groups) {
+      const meta=posterDayMeta(day);
+      ctx.fillStyle=meta.accent;
+      ctx.font=`900 24px ${family}`;
+      ctx.fillText(meta.label,margin,y+25);
+
+      ctx.fillStyle='#6f6574';
+      ctx.font=`800 20px ${family}`;
+      const count=`${artists.length}`;
+      ctx.fillText(count,1080-margin-ctx.measureText(count).width,y+25);
+
+      y+=54;
+      ctx.font=`800 ${fontSize}px ${family}`;
+
+      for (let index=0; index<artists.length; index+=columnsCount) {
+        const cells=[];
+        let rowLines=1;
+
+        for (let column=0;column<columnsCount;column+=1) {
+          const name=artists[index+column];
+          const lines=name ? wrapPosterText(ctx,name,colWidth-26) : [];
+          cells.push(lines);
+          rowLines=Math.max(rowLines,lines.length || 1);
+        }
+
+        for (let column=0;column<columnsCount;column+=1) {
+          const name=artists[index+column];
+          if (!name) continue;
+          const x=margin+column*(colWidth+gap);
+          const lines=cells[column];
+
+          ctx.fillStyle=meta.accent;
+          ctx.beginPath();
+          ctx.arc(x+5,y+fontSize*.45,4,0,Math.PI*2);
+          ctx.fill();
+
+          ctx.fillStyle='#f5f1f6';
+          lines.forEach((line,lineIndex) => {
+            ctx.fillText(line,x+18,y+fontSize+lineIndex*lineHeight);
+          });
+        }
+
+        y+=rowLines*lineHeight+17;
+      }
+
+      y+=24;
+      ctx.strokeStyle='rgba(255,255,255,.055)';
+      ctx.beginPath();
+      ctx.moveTo(margin,y-4);
+      ctx.lineTo(1080-margin,y-4);
+      ctx.stroke();
+    }
+
+    const footerY=canvas.height-54;
+    ctx.fillStyle='#746b79';
+    ctx.font=`800 18px ${family}`;
+    ctx.fillText('MI SELECCIÓN · FESTIVALFY',margin,footerY);
+
+    ctx.textAlign='right';
+    ctx.fillText('PRIMAVERA SOUND 2027',1080-margin,footerY);
+    ctx.textAlign='left';
+
+    const blob=await new Promise((resolve,reject) => {
+      canvas.toBlob(value => value ? resolve(value) : reject(new Error('No se pudo crear el PNG.')),'image/png');
+    });
+
+    return blob;
+  }
+
+  function clearPosterPreview() {
+    if (currentPosterUrl) URL.revokeObjectURL(currentPosterUrl);
+    currentPosterUrl='';
+    currentPosterBlob=null;
+    posterPreview.removeAttribute('src');
+  }
+
+  async function openPosterPreview() {
+    const names=saved.list();
+    if (!names.length) {
+      toast('Guarda algún artista antes de crear la imagen');
+      return;
+    }
+
+    posterButton.disabled=true;
+    posterButton.textContent='Creando…';
+
+    try {
+      clearPosterPreview();
+      currentPosterBlob=await createCartelPoster(names);
+      currentPosterUrl=URL.createObjectURL(currentPosterBlob);
+      posterPreview.src=currentPosterUrl;
+      posterDialog.showModal();
+    } catch (error) {
+      console.error('Festivalfy poster generation failed',error);
+      toast(error.message || 'No se pudo crear la imagen');
+    } finally {
+      posterButton.disabled=false;
+      posterButton.textContent='Crear imagen';
+    }
+  }
+
+  function downloadPoster() {
+    if (!currentPosterBlob || !currentPosterUrl) return;
+    const link=document.createElement('a');
+    link.href=currentPosterUrl;
+    link.download='festivalfy-mi-cartel-primavera-2027.png';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  posterButton.addEventListener('click',openPosterPreview);
+  posterDialog.querySelector('.poster-dialog-close').addEventListener('click',() => posterDialog.close());
+  posterDialog.addEventListener('click',event => {
+    if (event.target === posterDialog) posterDialog.close();
+  });
+  posterDialog.addEventListener('close',clearPosterPreview);
+
+  posterSaveButton.addEventListener('click',() => {
+    downloadPoster();
+    toast('Imagen preparada para guardar');
+  });
+
+  posterShareButton.addEventListener('click',async () => {
+    if (!currentPosterBlob) return;
+
+    const file=new File(
+      [currentPosterBlob],
+      'festivalfy-mi-cartel-primavera-2027.png',
+      {type:'image/png'}
+    );
+
+    try {
+      const shareData={
+        title:'Mi cartel de Primavera Sound Barcelona 2027',
+        text:'Mi selección para Primavera Sound Barcelona 2027',
+        files:[file]
+      };
+      if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+        await navigator.share(shareData);
+        return;
+      }
+      downloadPoster();
+      toast('Tu navegador no comparte archivos directamente. He preparado el PNG');
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+      downloadPoster();
+      toast('He preparado el PNG para que puedas compartirlo');
+    }
+  });
 
   let friendsSection = savedScreen.querySelector('.saved-friends-section');
   if (!friendsSection) {

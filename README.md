@@ -58,6 +58,10 @@ La generación es progresiva: en cuanto se encuentra la primera canción válida
 
 Las canciones verificadas encontradas se conservan en memoria durante la sesión para acelerar las siguientes mezclas. El Web Playback SDK se prepara en segundo plano y el toque sobre *Escuchar mezcla* activa el elemento de reproducción de forma síncrona antes de buscar canciones, para respetar las restricciones de autoplay de Safari/iOS. Al tocar el mini reproductor mientras suena la Radio, Festivalfy usa mapas directos creados junto con la propia mezcla y un índice global de todos los perfiles verificados del cartel. Si el Web Playback SDK no aporta suficientes datos, consulta una sola vez la canción actual por su ID en la Web API, cruza sus artistas con ese índice y guarda el resultado en caché. Cada cambio de canción deja además la ficha resuelta guardada en el botón del mini reproductor, desde donde puede guardarse en *Mi cartel*. *Nueva mezcla* vuelve a elegir artistas/canciones. La playlist pública existente sigue disponible como alternativa mediante *Abrir playlist en Spotify*.
 
+## Generar imagen de Mi cartel
+
+Desde **Mi cartel** se puede crear un póster vertical en PNG con la selección guardada, agrupada por día. La imagen se genera íntegramente en el navegador mediante Canvas, sin subir artistas ni datos a un servidor. En navegadores compatibles se comparte como archivo desde la hoja nativa; también puede guardarse como PNG.
+
 ## Compartir y comparar carteles
 
 En **Mi cartel** hay un botón *Compartir mi cartel*. Genera un enlace del tipo `…/festivalfy/?cartel=…` y abre el menú de compartir del móvil; si el navegador no lo admite, copia el enlace al portapapeles.

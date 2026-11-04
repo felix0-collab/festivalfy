@@ -3287,11 +3287,6 @@ resolveAct = async function resolveActSafely(name, force = false) {
   let webPlayerRecoveryPromise = null;
   let webPlayerGeneration = 0;
   const artistTrackUriCache = new Map();
-  let artistPlaybackUris = [];
-  let artistPlaybackProfileId = '';
-  let artistPlaybackLastValidUri = '';
-  let artistPlaybackGuardEnabled = false;
-  let artistPlaybackGuardPromise = null;
   const FESTIVAL_RADIO_SOURCE_ID = '__festival_radio__';
   let currentFestivalRadioMix = null;
   let festivalRadioGeneration = 0;
@@ -4097,7 +4092,6 @@ resolveAct = async function resolveActSafely(name, force = false) {
       playerInstance.addListener('player_state_changed', state => {
         if (generation !== webPlayerGeneration || webPlayer !== playerInstance) return;
         paintPremiumState(state);
-        guardArtistPlayback(state);
         startProgressTicker();
       });
       playerInstance.addListener('initialization_error', ({message}) => rejectReady(new Error(message || 'No se pudo iniciar Spotify.')));
@@ -4178,87 +4172,6 @@ resolveAct = async function resolveActSafely(name, force = false) {
       throw error;
     }
     return payload;
-  }
-
-  function sdkTrackBelongsToProfile(track, profileId) {
-    if (!track || !profileId) return false;
-    if (artistPlaybackUris.includes(track.uri)) return true;
-    const expectedUri=`spotify:artist:${profileId}`;
-    return (track.artists || []).some(artist => (
-      artist?.id === profileId || artist?.uri === expectedUri
-    ));
-  }
-
-  function nextArtistPlaybackUris() {
-    if (!artistPlaybackUris.length) return [];
-    const currentIndex=artistPlaybackUris.indexOf(artistPlaybackLastValidUri);
-    const start=currentIndex >= 0
-      ? (currentIndex + 1) % artistPlaybackUris.length
-      : 0;
-    return [
-      ...artistPlaybackUris.slice(start),
-      ...artistPlaybackUris.slice(0,start)
-    ];
-  }
-
-  async function guardArtistPlayback(state) {
-    if (
-      !artistPlaybackGuardEnabled
-      || !artistPlaybackProfileId
-      || currentPlaybackProfileId !== artistPlaybackProfileId
-      || currentPlaybackProfileId === FESTIVAL_RADIO_SOURCE_ID
-    ) return;
-
-    const track=state?.track_window?.current_track;
-    if (!track) return;
-
-    if (sdkTrackBelongsToProfile(track,artistPlaybackProfileId)) {
-      artistPlaybackLastValidUri=track.uri || artistPlaybackLastValidUri;
-      return;
-    }
-
-    if (artistPlaybackGuardPromise) return artistPlaybackGuardPromise;
-
-    artistPlaybackGuardPromise=(async () => {
-      const uris=nextArtistPlaybackUris();
-      if (!uris.length) return;
-
-      if (activePremiumUi?.status) {
-        activePremiumUi.status.textContent='Manteniendo la reproducción de este artista…';
-      }
-
-      if (!webDeviceId) await recoverWebPlayer('artist_guard_missing_device');
-
-      try {
-        await userPlaybackRequest(
-          `/me/player/shuffle?state=false&device_id=${encodeURIComponent(webDeviceId)}`,
-          {method:'PUT'}
-        );
-      } catch {}
-
-      try {
-        await userPlaybackRequest(
-          `/me/player/repeat?state=context&device_id=${encodeURIComponent(webDeviceId)}`,
-          {method:'PUT'}
-        );
-      } catch {}
-
-      await userPlaybackRequest(
-        `/me/player/play?device_id=${encodeURIComponent(webDeviceId)}`,
-        {method:'PUT',body:{uris}}
-      );
-    })();
-
-    try {
-      await artistPlaybackGuardPromise;
-    } catch (error) {
-      console.warn('Festivalfy no pudo mantener el modo artista.',error);
-      if (activePremiumUi?.status) {
-        activePremiumUi.status.textContent='Spotify se ha desviado · pulsa reproducir para recuperar este artista';
-      }
-    } finally {
-      artistPlaybackGuardPromise=null;
-    }
   }
 
   function trackBelongsToProfile(track, profileId) {
@@ -4358,11 +4271,6 @@ resolveAct = async function resolveActSafely(name, force = false) {
       throw error;
     }
 
-    artistPlaybackUris=[...trackUris];
-    artistPlaybackProfileId=profile.id;
-    artistPlaybackLastValidUri='';
-    artistPlaybackGuardEnabled=false;
-
     ui.status.textContent='Iniciando reproducción completa…';
 
     const playOnDevice=async () => {
@@ -4370,12 +4278,6 @@ resolveAct = async function resolveActSafely(name, force = false) {
       try {
         await userPlaybackRequest(
           `/me/player/shuffle?state=false&device_id=${encodeURIComponent(webDeviceId)}`,
-          {method:'PUT'}
-        );
-      } catch {}
-      try {
-        await userPlaybackRequest(
-          `/me/player/repeat?state=context&device_id=${encodeURIComponent(webDeviceId)}`,
           {method:'PUT'}
         );
       } catch {}
@@ -4408,9 +4310,8 @@ resolveAct = async function resolveActSafely(name, force = false) {
         }
       }
 
-      artistPlaybackGuardEnabled=true;
       ui.started=true;
-      ui.status.textContent='Spotify Premium · solo este artista';
+      ui.status.textContent='Spotify Premium · reproducción completa';
       window.setTimeout(async () => {
         try {
           const state = await webPlayer?.getCurrentState();
@@ -4585,112 +4486,6 @@ resolveAct = async function resolveActSafely(name, force = false) {
     return shufflePlayerValues([...profiles.values()]);
   }
 
-  async function findFastRadioTrack(profile, usedUris = new Set()) {
-    const cached=(artistTrackUriCache.get(profile.id) || []).filter(uri => !usedUris.has(uri));
-    if (cached.length) {
-      return cached[crypto.getRandomValues(new Uint32Array(1))[0] % cached.length];
-    }
-
-    const cleanName=String(profile.name || '').replace(/["\\]/g,' ').trim();
-    if (!cleanName) return null;
-
-    try {
-      const result=await userPlaybackRequest(
-        `/search?type=track&limit=10&q=${encodeURIComponent(`artist:"${cleanName}"`)}`
-      );
-      const exact=uniqueTrackUris(result?.tracks?.items,profile.id);
-      if (!exact.length) return null;
-
-      const prior=artistTrackUriCache.get(profile.id) || [];
-      artistTrackUriCache.set(profile.id,[...new Set([...prior,...exact])]);
-      const available=exact.filter(uri => !usedUris.has(uri));
-      if (!available.length) return null;
-      return available[crypto.getRandomValues(new Uint32Array(1))[0] % available.length];
-    } catch (error) {
-      console.warn('Festivalfy radio: búsqueda rápida fallida para',profile.name,error);
-      return null;
-    }
-  }
-
-  async function findFirstFestivalRadioTrack(
-    profiles,
-    generation,
-    usedUris,
-    targetTracks,
-    onProgress
-  ) {
-    const batchSize=4;
-    const fastProfiles=profiles.slice(0,Math.min(profiles.length,24));
-
-    for (let offset=0; offset<fastProfiles.length; offset+=batchSize) {
-      if (generation !== festivalRadioGeneration) {
-        throw new Error('La mezcla se ha sustituido por otra nueva.');
-      }
-
-      const batch=fastProfiles.slice(offset,offset+batchSize);
-      onProgress?.({
-        phase:'first',
-        found:0,
-        target:targetTracks,
-        checked:Math.min(offset+batch.length,fastProfiles.length),
-        totalProfiles:profiles.length,
-        artist:batch.map(profile => profile.name).join(' · ')
-      });
-
-      const attempts=batch.map((profile,batchIndex) => (
-        findFastRadioTrack(profile,usedUris).then(uri => {
-          if (!uri) throw new Error('NO_FAST_TRACK');
-          return {
-            track:{
-              uri,
-              profileId:profile.id,
-              artistName:profile.name,
-              act:profile.act
-            },
-            index:offset+batchIndex
-          };
-        })
-      ));
-
-      try {
-        return await Promise.any(attempts);
-      } catch {}
-    }
-
-    // Only if the fast search did not find anything, try the slower album
-    // fallback on a small subset instead of walking the whole festival.
-    const fallbackProfiles=profiles.slice(0,Math.min(profiles.length,8));
-    for (let index=0; index<fallbackProfiles.length; index+=1) {
-      if (generation !== festivalRadioGeneration) {
-        throw new Error('La mezcla se ha sustituido por otra nueva.');
-      }
-
-      const profile=fallbackProfiles[index];
-      onProgress?.({
-        phase:'first-fallback',
-        found:0,
-        target:targetTracks,
-        checked:index+1,
-        totalProfiles:fallbackProfiles.length,
-        artist:profile.name
-      });
-
-      const uri=await findOneExactArtistTrack(profile,usedUris);
-      if (!uri) continue;
-      return {
-        track:{
-          uri,
-          profileId:profile.id,
-          artistName:profile.name,
-          act:profile.act
-        },
-        index
-      };
-    }
-
-    return null;
-  }
-
   async function findOneExactArtistTrack(profile, usedUris = new Set()) {
     const cached=(artistTrackUriCache.get(profile.id) || []).filter(uri => !usedUris.has(uri));
     if (cached.length) {
@@ -4742,10 +4537,6 @@ resolveAct = async function resolveActSafely(name, force = false) {
     if (!webPlayer || !webDeviceId) await ensureWebPlayer();
     try { webPlayer.activateElement(); } catch {}
 
-    artistPlaybackGuardEnabled=false;
-    artistPlaybackProfileId='';
-    artistPlaybackUris=[];
-    artistPlaybackLastValidUri='';
     currentPlaybackProfileId=FESTIVAL_RADIO_SOURCE_ID;
     currentPlaybackArtistName='Radio del festival';
     activePremiumUi=null;
@@ -4757,12 +4548,6 @@ resolveAct = async function resolveActSafely(name, force = false) {
       try {
         await userPlaybackRequest(
           `/me/player/shuffle?state=false&device_id=${encodeURIComponent(webDeviceId)}`,
-          {method:'PUT'}
-        );
-      } catch {}
-      try {
-        await userPlaybackRequest(
-          `/me/player/repeat?state=off&device_id=${encodeURIComponent(webDeviceId)}`,
           {method:'PUT'}
         );
       } catch {}
@@ -4947,19 +4732,35 @@ resolveAct = async function resolveActSafely(name, force = false) {
     clearFestivalRadioMaps();
     const profiles=verifiedFestivalProfiles();
     const usedUris=new Set();
-    const firstResult=await findFirstFestivalRadioTrack(
-      profiles,
-      generation,
-      usedUris,
-      targetTracks,
-      onProgress
-    );
-    const firstTrack=firstResult?.track || null;
-    const firstIndex=Number.isInteger(firstResult?.index) ? firstResult.index : -1;
+    let firstTrack=null;
+    let firstIndex=-1;
 
-    if (!firstTrack) {
-      throw new Error('No hemos podido preparar la Radio ahora mismo. Inténtalo de nuevo.');
+    for (let index=0; index<profiles.length; index+=1) {
+      if (generation !== festivalRadioGeneration) throw new Error('La mezcla se ha sustituido por otra nueva.');
+      const profile=profiles[index];
+      onProgress?.({
+        phase:'first',
+        found:0,
+        target:targetTracks,
+        checked:index+1,
+        totalProfiles:profiles.length,
+        artist:profile.name
+      });
+
+      const uri=await findOneExactArtistTrack(profile,usedUris);
+      if (!uri) continue;
+
+      firstTrack={
+        uri,
+        profileId:profile.id,
+        artistName:profile.name,
+        act:profile.act
+      };
+      firstIndex=index;
+      break;
     }
+
+    if (!firstTrack) throw new Error('No hemos encontrado una primera canción verificable del cartel.');
 
     usedUris.add(firstTrack.uri);
     currentFestivalRadioMix=[firstTrack];
@@ -5166,10 +4967,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
   function progressLabel(progress) {
     if (progress.phase === 'first') {
-      return 'Buscando una primera canción verificada…';
-    }
-    if (progress.phase === 'first-fallback') {
-      return `Comprobando catálogo · ${progress.artist || 'artista verificado'}…`;
+      return `Buscando la primera canción · ${progress.artist || 'artista verificado'}…`;
     }
     if (progress.phase === 'starting') return 'Primera canción lista · iniciando reproducción…';
     if (progress.phase === 'playing') {

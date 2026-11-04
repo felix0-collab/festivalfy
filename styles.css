@@ -118,7 +118,17 @@ button { -webkit-tap-highlight-color: transparent; }
 }
 .eyebrow { display: block; color: #d9a1fa; font-size: 11px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
 .festival-card .eyebrow { position: absolute; top: 25px; left: 25px; }
-.festival-title { margin-bottom: 15px; font-size: 44px; font-weight: 950; line-height: .9; letter-spacing: -2.4px; text-transform: uppercase; }
+.festival-title {
+  position: absolute;
+  top: 96px;
+  left: 25px;
+  margin: 0;
+  font-size: 44px;
+  font-weight: 950;
+  line-height: .9;
+  letter-spacing: -2.4px;
+  text-transform: uppercase;
+}
 .festival-meta { color: #d4cdd8; font-size: 14px; line-height: 1.65; }
 .festival-link { margin-top: 15px; color: #dc9cff; font-weight: 850; }
 

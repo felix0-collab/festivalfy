@@ -7,7 +7,7 @@ Web estática (sin servidor) para descubrir los artistas de festivales y escucha
 - **Datos publicados:** `published-spotify-data-1..4.js` contienen las asociaciones artista → perfil de Spotify revisadas (IDs, nombres, URLs e imágenes). Son el catálogo que ven todos los visitantes.
 - **Catálogo de país y géneros:** `artist-metadata-static.js`, texto estático, sin consultas externas.
 - **Cartel:** la estructura de días y actuaciones está dentro de `festivalfy.js` (`FESTIVAL.days`).
-- **Código de la aplicación:** `festivalfy.js`. Es un único fichero con todas las funciones: navegación, cartel, ficha del artista, reproductor de Spotify incrustado, filtros de género y país, Mi cartel (selecciones guardadas en el navegador), Radio del festival (actualiza una playlist pública de Spotify con una mezcla de artistas verificados), conexión con Spotify y modo administrador. Las secciones están marcadas con comentarios `===== nombre.js =====` según su origen.
+- **Código de la aplicación:** `festivalfy.js`. Es un único fichero con todas las funciones: navegación, cartel, ficha del artista, reproductor de Spotify incrustado, filtros de género y país, Mi cartel (selecciones guardadas en el navegador), Radio del festival (mezcla dinámica de canciones verificadas del cartel y playlist pública de Spotify como alternativa), conexión con Spotify y modo administrador. Las secciones están marcadas con comentarios `===== nombre.js =====` según su origen.
 - **Conexión con Spotify:** dentro de `festivalfy.js` y en `callback/index.html`, con Authorization Code + PKCE. El Client ID es público por diseño; no hay Client Secret en el proyecto.
 
 ## Modo administrador: importante
@@ -49,6 +49,12 @@ En la lista de artistas de un día hay un botón *Filtros* que abre dos grupos d
 Los filtros se borran al salir de la lista, pero se conservan al entrar en la ficha de un artista y volver.
 
 Los géneros del catálogo se agrupan en siete familias definidas en `GENRE_FAMILIES` dentro de `festivalfy.js`.
+
+## Radio del festival dinámica
+
+La acción principal de **Radio del festival** crea dentro de Festivalfy una mezcla de hasta 50 canciones de perfiles de Spotify verificados del cartel. Antes de aceptar una canción, el código comprueba que el ID del artista de la canción coincide exactamente con el perfil publicado. La mezcla intenta usar un artista distinto por canción antes de repetir, desactiva el modo aleatorio de Spotify y envía una lista explícita de URIs al reproductor Premium.
+
+La primera mezcla puede requerir consultas al catálogo de Spotify. Las canciones verificadas encontradas se conservan en memoria durante la sesión para acelerar las siguientes mezclas. *Nueva mezcla* vuelve a elegir artistas/canciones y cambia el orden. La playlist pública existente sigue disponible como alternativa mediante *Abrir playlist en Spotify*.
 
 ## Compartir y comparar carteles
 

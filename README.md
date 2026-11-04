@@ -95,3 +95,10 @@ Los errores `429` conservan ahora el campo `reason` de Spotify, incluido `QUOTA_
 Las fichas pueden arrancar con el contexto de artista para obtener una primera canción inmediata, pero Festivalfy transforma enseguida esa reproducción en una lista explícita de URIs verificadas cuyo artista coincide con el Spotify Artist ID seleccionado. Primero aprovecha `current_track` y `next_tracks` del Web Playback SDK; si faltan canciones, completa desde el álbum actual y, como último recurso, desde unos pocos álbumes del artista. La lista resultante se guarda localmente por Spotify Artist ID para evitar repetir consultas de catálogo.
 
 Si Spotify intenta reproducir una pista que no contiene el Artist ID seleccionado, Festivalfy restaura la lista estricta; si todavía no existe una lista recuperable, detiene la reproducción antes de continuar con otro artista.
+
+
+## Cola de artista con varios lanzamientos
+
+Cuando una ficha no tiene todavía una cola local, Festivalfy arranca el contexto del artista para no retrasar la primera canción y, en segundo plano, construye una lista explícita con varias canciones del mismo Spotify Artist ID. Usa el álbum actual y después `GET /artists/{id}/albums` más `GET /albums/{id}/tracks`, endpoints vigentes en la API de Spotify de 2026. Se priorizan álbumes completos y se consultan como máximo unos pocos lanzamientos.
+
+La repetición de contexto solo se activa cuando la cola contiene al menos dos URIs distintas. Con una sola canción, repeat queda en `off`; si Spotify intenta salir del artista antes de que haya una cola válida, Festivalfy pausa en vez de volver a repetir indefinidamente la misma pista.

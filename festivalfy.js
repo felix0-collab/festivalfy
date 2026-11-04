@@ -1998,6 +1998,15 @@ resolveAct = async function resolveActSafely(name, force = false) {
   });
 
   updateSavedNavigationIcon();
+
+  // API mínima para otros módulos (compartir y comparar carteles).
+  window.FestivalfySaved = {
+    list: () => [...savedArtists],
+    has: name => savedArtists.has(name),
+    openScreen: openSavedScreen,
+    artistImage,
+    artistSpotifyUrl
+  };
 })();
 
 
@@ -3959,4 +3968,340 @@ resolveAct = async function resolveActSafely(name, force = false) {
     }
     return screenBase(name);
   };
+})();
+
+/* ===== cartel-share.js ===== */
+'use strict';
+(function cartelShareInstaller() {
+  const saved = window.FestivalfySaved;
+  const bottomNav = document.querySelector('.bottom-nav');
+  const savedScreen = document.getElementById('savedScreen');
+  if (!saved || !bottomNav || !savedScreen) return;
+
+  const PARAM = 'cartel';
+  const FORMAT = '1';
+
+  const index = [...allArtists()].sort((a, b) => a.localeCompare(b, 'es'));
+
+  function catalogFingerprint() {
+    let hash = 0;
+    const source = `${index.length}:${index.join('|')}`;
+    for (let i = 0; i < source.length; i += 1) {
+      hash = (hash * 31 + source.charCodeAt(i)) >>> 0;
+    }
+    return hash.toString(36).slice(-3).padStart(3, '0');
+  }
+
+  const fingerprint = catalogFingerprint();
+
+  function bytesToBase64Url(bytes) {
+    let binary = '';
+    bytes.forEach(byte => { binary += String.fromCharCode(byte); });
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function base64UrlToBytes(value) {
+    const padded = value.replace(/-/g, '+').replace(/_/g, '/');
+    const binary = atob(padded + '='.repeat((4 - (padded.length % 4)) % 4));
+    return Uint8Array.from(binary, character => character.charCodeAt(0));
+  }
+
+  function encodeSelection(names) {
+    const chosen = new Set(names);
+    const bytes = new Uint8Array(Math.ceil(index.length / 8));
+    index.forEach((name, position) => {
+      if (chosen.has(name)) bytes[position >> 3] |= 1 << (position % 8);
+    });
+    return `${FORMAT}${fingerprint}${bytesToBase64Url(bytes)}`;
+  }
+
+  function decodeSelection(code) {
+    const value = String(code || '');
+    if (value.slice(0, 1) !== FORMAT) return {error: 'format'};
+    if (value.slice(1, 4) !== fingerprint) return {error: 'outdated'};
+    try {
+      const bytes = base64UrlToBytes(value.slice(4));
+      const names = index.filter((_, position) => bytes[position >> 3] & (1 << (position % 8)));
+      return {names};
+    } catch {
+      return {error: 'format'};
+    }
+  }
+
+  function shareUrl(names) {
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set(PARAM, encodeSelection(names));
+    return url.toString();
+  }
+
+  const style = document.createElement('style');
+  style.textContent = `
+    .saved-share {
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin:0 0 16px;
+    }
+    .saved-share button {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      min-height:44px;
+      padding:11px 16px;
+      border:1px solid #3a3041;
+      border-radius:999px;
+      background:#19151e;
+      color:#e9e2ec;
+      font-size:13px;
+      font-weight:850;
+      cursor:pointer;
+    }
+    .saved-share button:active { background:#221c28; }
+    .saved-share button.primary { border-color:#d7a0f4; color:#f6ecfc; }
+    .saved-share button[hidden] { display:none; }
+    .compare-summary {
+      padding:16px;
+      border:1px solid #2e2635;
+      border-radius:16px;
+      background:#151119;
+      margin:0 0 18px;
+    }
+    .compare-summary strong {
+      display:block;
+      font-size:26px;
+      font-weight:900;
+      color:#d7a0f4;
+    }
+    .compare-summary span {
+      display:block;
+      margin-top:4px;
+      color:#8f8594;
+      font-size:13px;
+      line-height:1.5;
+    }
+    .compare-group { margin:0 0 22px; }
+    .compare-group-heading {
+      display:flex;
+      align-items:baseline;
+      justify-content:space-between;
+      gap:12px;
+      margin:0 0 4px;
+    }
+    .compare-group-heading h2 {
+      margin:0;
+      font-size:15px;
+      font-weight:900;
+      color:#f0e9f3;
+    }
+    .compare-group-heading span { color:#8f8594; font-size:13px; font-weight:800; }
+    .compare-group-note {
+      margin:0 0 10px;
+      color:#8f8594;
+      font-size:12px;
+      line-height:1.5;
+    }
+    .compare-day {
+      margin:0 0 6px;
+      color:#8f8594;
+      font-size:12px;
+      font-weight:850;
+      letter-spacing:.03em;
+      text-transform:uppercase;
+    }
+    .compare-empty {
+      padding:14px;
+      border:1px dashed #332b3b;
+      border-radius:14px;
+      color:#8f8594;
+      font-size:13px;
+      line-height:1.5;
+    }
+    .compare-error {
+      padding:16px;
+      border:1px solid #5a2f3a;
+      border-radius:16px;
+      background:#1e1419;
+      color:#e9d6dd;
+      font-size:13px;
+      line-height:1.55;
+    }
+  `;
+  document.head.appendChild(style);
+
+  const shareBar = document.createElement('div');
+  shareBar.className = 'saved-share';
+
+  const shareButton = document.createElement('button');
+  shareButton.type = 'button';
+  shareButton.className = 'primary';
+  shareButton.textContent = 'Compartir mi cartel';
+
+  const compareButton = document.createElement('button');
+  compareButton.type = 'button';
+  compareButton.textContent = 'Ver comparación';
+  compareButton.hidden = true;
+
+  shareBar.append(shareButton, compareButton);
+  savedScreen.querySelector('.saved-content').prepend(shareBar);
+
+  shareButton.addEventListener('click', async () => {
+    const names = saved.list();
+    if (!names.length) {
+      toast('Guarda algún artista antes de compartir tu cartel');
+      return;
+    }
+
+    const url = shareUrl(names);
+    try {
+      if (navigator.share) {
+        await navigator.share({title: 'Mi cartel de Primavera Sound 2027', url});
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      toast('Enlace copiado. Pégalo donde quieras');
+    } catch (error) {
+      if (error && error.name === 'AbortError') return;
+      window.prompt('Copia este enlace para compartir tu cartel:', url);
+    }
+  });
+
+  compareButton.addEventListener('click', () => openCompareScreen());
+
+  const compareScreen = document.createElement('section');
+  compareScreen.id = 'compareScreen';
+  compareScreen.className = 'screen';
+  compareScreen.setAttribute('aria-label', 'Comparar carteles');
+  compareScreen.innerHTML = `
+    <header class="lineup-header">
+      <button class="back-button" id="compareBack" type="button" aria-label="Volver a Mi cartel">‹</button>
+      <div>
+        <small>Primavera Sound 2027</small>
+        <h1>Comparar carteles</h1>
+      </div>
+    </header>
+    <div class="page-content">
+      <div id="compareContent"></div>
+    </div>`;
+  bottomNav.before(compareScreen);
+  screens.compare = compareScreen;
+
+  compareScreen.querySelector('#compareBack').addEventListener('click', () => saved.openScreen());
+
+  let sharedSelection = null;
+
+  function groupByDay(names) {
+    const chosen = new Set(names);
+    return Object.entries(FESTIVAL.days)
+      .map(([day, artists]) => [day, artists.filter(name => chosen.has(name))])
+      .filter(([, artists]) => artists.length);
+  }
+
+  function artistRow(name) {
+    const profile = cache[name]?.profiles?.[0];
+    return `<article class="saved-artist-card">
+      <button class="saved-artist-main" type="button" data-compare-open="${escapeHtml(name)}">
+        <span class="artist-avatar">${saved.artistImage(name)}</span>
+        <span class="artist-copy">
+          <strong>${escapeHtml(name)}</strong>
+          <small>${profile ? escapeHtml(profile.name) : 'Abrir ficha del artista'}</small>
+        </span>
+      </button>
+      <a class="spotify-link" href="${escapeHtml(saved.artistSpotifyUrl(name))}" target="_blank" rel="noopener" aria-label="Abrir ${escapeHtml(name)} en Spotify">▶</a>
+    </article>`;
+  }
+
+  function groupBlock(title, note, names) {
+    const groups = groupByDay(names);
+    const body = groups.length
+      ? groups.map(([day, artists]) => `
+          <p class="compare-day">${escapeHtml(DAY_LABELS[day])}</p>
+          <div class="saved-artist-list">${artists.map(artistRow).join('')}</div>
+        `).join('')
+      : '<div class="compare-empty">No hay ninguno en este grupo.</div>';
+
+    return `<section class="compare-group">
+      <div class="compare-group-heading">
+        <h2>${escapeHtml(title)}</h2>
+        <span>${names.length}</span>
+      </div>
+      ${note ? `<p class="compare-group-note">${escapeHtml(note)}</p>` : ''}
+      ${body}
+    </section>`;
+  }
+
+  function renderCompare() {
+    const content = compareScreen.querySelector('#compareContent');
+
+    if (!sharedSelection) {
+      content.innerHTML = '<div class="compare-empty">Todavía no has abierto ningún cartel compartido. Pide a tu amigo que te mande su enlace.</div>';
+      return;
+    }
+
+    if (sharedSelection.error) {
+      content.innerHTML = `<div class="compare-error">${escapeHtml(sharedSelection.error === 'outdated'
+        ? 'Este enlace se creó con una versión anterior del cartel, así que no podemos comparar sin riesgo de mostrar artistas equivocados. Pide a tu amigo que vuelva a compartir su cartel.'
+        : 'No hemos podido leer este enlace. Puede que se haya cortado al copiarlo. Pide a tu amigo que vuelva a compartirlo.')}</div>`;
+      return;
+    }
+
+    const theirs = sharedSelection.names;
+    const mine = saved.list();
+    const mineSet = new Set(mine);
+    const theirsSet = new Set(theirs);
+
+    const both = theirs.filter(name => mineSet.has(name));
+    const onlyTheirs = theirs.filter(name => !mineSet.has(name));
+    const onlyMine = mine.filter(name => !theirsSet.has(name));
+
+    const summary = mine.length
+      ? `<div class="compare-summary">
+          <strong>${both.length}</strong>
+          <span>${both.length === 1 ? 'artista en común' : 'artistas en común'}. Su cartel tiene ${theirs.length} y el tuyo ${mine.length}.</span>
+        </div>`
+      : `<div class="compare-summary">
+          <strong>${theirs.length}</strong>
+          <span>${theirs.length === 1 ? 'artista en su cartel' : 'artistas en su cartel'}. Todavía no has guardado ninguno, así que marca los que te interesen con el corazón y vuelve aquí.</span>
+        </div>`;
+
+    content.innerHTML = summary
+      + groupBlock('Coincidís', 'Los artistas que estáis los dos.', both)
+      + groupBlock('Solo en su cartel', 'Ideas para descubrir.', onlyTheirs)
+      + groupBlock('Solo en el tuyo', 'Los que has guardado tú.', onlyMine);
+
+    content.querySelectorAll('[data-compare-open]').forEach(button => {
+      button.addEventListener('click', () => openArtist(button.dataset.compareOpen));
+    });
+  }
+
+  function openCompareScreen() {
+    renderCompare();
+    showScreen('compare');
+    $all('.nav-item').forEach(button => button.classList.remove('active'));
+    $('#navSaved')?.classList.add('active');
+  }
+
+  const oldBack = $('#artistBack');
+  if (oldBack) {
+    const artistBack = oldBack.cloneNode(true);
+    oldBack.replaceWith(artistBack);
+    artistBack.addEventListener('click', () => {
+      if (previousScreen === 'compare') openCompareScreen();
+      else if (previousScreen === 'saved') saved.openScreen();
+      else if (previousScreen === 'festival') openFestival();
+      else openLineup(activeDay, {restore: true});
+    });
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const incoming = params.get(PARAM);
+  if (incoming) {
+    sharedSelection = decodeSelection(incoming);
+    compareButton.hidden = false;
+    params.delete(PARAM);
+    const clean = `${window.location.pathname}${params.toString() ? `?${params}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, '', clean);
+    window.setTimeout(openCompareScreen, 0);
+  }
 })();

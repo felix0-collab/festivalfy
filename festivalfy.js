@@ -3286,6 +3286,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
   let miniUi = null;
   let webPlayerRecoveryPromise = null;
   let webPlayerGeneration = 0;
+  const artistTrackUriCache = new Map();
 
   const style = document.createElement('style');
   style.textContent = `
@@ -3939,6 +3940,82 @@ resolveAct = async function resolveActSafely(name, force = false) {
     return payload;
   }
 
+  function trackBelongsToProfile(track, profileId) {
+    return Boolean(track?.uri && (track.artists || []).some(artist => artist?.id === profileId));
+  }
+
+  function uniqueTrackUris(tracks, profileId) {
+    const seen = new Set();
+    const uris = [];
+    for (const track of tracks || []) {
+      if (!trackBelongsToProfile(track, profileId) || seen.has(track.uri)) continue;
+      seen.add(track.uri);
+      uris.push(track.uri);
+    }
+    return uris;
+  }
+
+  async function findExactArtistTracks(profile) {
+    if (artistTrackUriCache.has(profile.id)) return artistTrackUriCache.get(profile.id);
+
+    const searches = [
+      `artist:"${String(profile.name || '').replace(/"/g,' ')}"`,
+      String(profile.name || '')
+    ];
+    const found = [];
+    const seen = new Set();
+
+    for (const query of searches) {
+      if (!query.trim()) continue;
+      try {
+        const result = await userPlaybackRequest(
+          `/search?type=track&limit=10&q=${encodeURIComponent(query)}`
+        );
+        for (const uri of uniqueTrackUris(result?.tracks?.items, profile.id)) {
+          if (seen.has(uri)) continue;
+          seen.add(uri);
+          found.push(uri);
+        }
+      } catch (error) {
+        console.warn('Festivalfy no pudo buscar canciones del artista.', profile.name, error);
+      }
+      if (found.length >= 8) break;
+    }
+
+    // Search can be sparse for small or unusually named artists. In that case,
+    // inspect a few of the artist's own albums and still keep only tracks whose
+    // Spotify artist id exactly matches this profile.
+    if (found.length < 4) {
+      try {
+        const albums = await userPlaybackRequest(
+          `/artists/${encodeURIComponent(profile.id)}/albums?include_groups=album,single&limit=6`
+        );
+        for (const album of (albums?.items || []).slice(0,6)) {
+          if (!album?.id || found.length >= 20) break;
+          try {
+            const tracks = await userPlaybackRequest(
+              `/albums/${encodeURIComponent(album.id)}/tracks?limit=20`
+            );
+            for (const uri of uniqueTrackUris(tracks?.items, profile.id)) {
+              if (seen.has(uri)) continue;
+              seen.add(uri);
+              found.push(uri);
+              if (found.length >= 20) break;
+            }
+          } catch (error) {
+            console.warn('Festivalfy no pudo leer canciones de un álbum.', album.id, error);
+          }
+        }
+      } catch (error) {
+        console.warn('Festivalfy no pudo leer los álbumes del artista.', profile.name, error);
+      }
+    }
+
+    const uris = found.slice(0,20);
+    artistTrackUriCache.set(profile.id, uris);
+    return uris;
+  }
+
   async function startArtistPlayback(profile, ui) {
     if (!webPlayer || !webDeviceId) await ensureWebPlayer();
     try { webPlayer.activateElement(); } catch {}
@@ -3948,14 +4025,29 @@ resolveAct = async function resolveActSafely(name, force = false) {
     latestPlaybackState=null;
     activePremiumUi=ui;
     updateMiniVisibility();
-    ui.status.textContent='Iniciando reproducción completa…';
+    ui.status.textContent='Buscando canciones del artista…';
     ui.main.disabled=true;
+
+    const trackUris=await findExactArtistTracks(profile);
+    if (!trackUris.length) {
+      const error=new Error('No encontramos canciones reproducibles verificadas para este perfil.');
+      error.code='NO_EXACT_ARTIST_TRACKS';
+      throw error;
+    }
+
+    ui.status.textContent='Iniciando reproducción completa…';
 
     const playOnDevice=async () => {
       if (!webDeviceId) await recoverWebPlayer('missing_device');
+      try {
+        await userPlaybackRequest(
+          `/me/player/shuffle?state=false&device_id=${encodeURIComponent(webDeviceId)}`,
+          {method:'PUT'}
+        );
+      } catch {}
       return userPlaybackRequest(
         `/me/player/play?device_id=${encodeURIComponent(webDeviceId)}`,
-        {method:'PUT', body:{context_uri:`spotify:artist:${profile.id}`}}
+        {method:'PUT', body:{uris:trackUris}}
       );
     };
 
@@ -4098,6 +4190,10 @@ resolveAct = async function resolveActSafely(name, force = false) {
         ui.main.disabled=false;
         ui.main.textContent='▶';
         ui.main.setAttribute('aria-label','Reproducir');
+        if (error?.code === 'NO_EXACT_ARTIST_TRACKS') {
+          ui.status.textContent='No encontramos canciones verificadas de este artista';
+          return;
+        }
         ui.status.textContent='Spotify se ha desconectado · pulsa para reconectar';
         try { await recoverWebPlayer('play_button'); } catch {}
       }

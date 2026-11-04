@@ -4324,8 +4324,22 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
   shareBar.appendChild(shareButton);
 
-  const friendsSection = savedScreen.querySelector('.saved-friends-section');
-  if (!friendsSection) return;
+  let friendsSection = savedScreen.querySelector('.saved-friends-section');
+  if (!friendsSection) {
+    friendsSection = document.createElement('section');
+    friendsSection.className = 'saved-section saved-friends-section';
+    friendsSection.setAttribute('aria-labelledby', 'savedFriendsTitle');
+    friendsSection.innerHTML = `
+      <div class="saved-section-heading">
+        <div>
+          <span class="saved-section-kicker">Compartir y comparar</span>
+          <h2 id="savedFriendsTitle">Mi cartel con amigos</h2>
+        </div>
+      </div>
+      <p class="saved-friends-intro">Comparte tu selección con tus amigos y guarda aquí sus carteles para ver qué artistas tenéis en común.</p>
+    `;
+    savedScreen.querySelector('.saved-content')?.appendChild(friendsSection);
+  }
 
   const friendsList = document.createElement('div');
   friendsList.className = 'friend-cartels';

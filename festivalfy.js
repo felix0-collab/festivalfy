@@ -4333,7 +4333,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
       <div class="saved-section-heading">
         <div>
           <span class="saved-section-kicker">Compartir y comparar</span>
-          <h2 id="savedFriendsTitle">Mi cartel con amigos</h2>
+          <h2 id="savedFriendsTitle">Mis amigos</h2>
         </div>
       </div>
       <p class="saved-friends-intro">Comparte tu selección con tus amigos y guarda aquí sus carteles para ver qué artistas tenéis en común.</p>
@@ -4503,7 +4503,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     const friend = friends.find(item => item.id === activeFriendId);
     if (!friend) {
       title.textContent = 'Comparar carteles';
-      content.innerHTML = '<div class="compare-empty">Selecciona uno de los carteles guardados en “Mi cartel con amigos”.</div>';
+      content.innerHTML = '<div class="compare-empty">Selecciona uno de los carteles guardados en “Mis amigos”.</div>';
       return;
     }
 

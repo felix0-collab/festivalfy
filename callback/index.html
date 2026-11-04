@@ -27,8 +27,9 @@
       const error = params.get('error');
       const code = params.get('code');
       const returnedState = params.get('state');
-      const expectedState = localStorage.getItem('festivalfy_spotify_state');
-      const codeVerifier = localStorage.getItem('festivalfy_spotify_verifier');
+      const purpose = localStorage.getItem('festivalfy_spotify_auth_purpose') === 'user' ? 'user' : 'admin';
+      const expectedState = localStorage.getItem(purpose === 'user' ? 'festivalfy_user_spotify_state' : 'festivalfy_spotify_state');
+      const codeVerifier = localStorage.getItem(purpose === 'user' ? 'festivalfy_user_spotify_verifier' : 'festivalfy_spotify_verifier');
 
       if (error) throw new Error('Spotify canceló la autorización: ' + error);
       if (!code || !codeVerifier) throw new Error('Faltan datos para completar la conexión.');
@@ -48,12 +49,24 @@
       const token = await response.json();
       if (!response.ok) throw new Error(token.error_description || token.error || 'Spotify no devolvió un token válido.');
 
-      localStorage.setItem('festivalfy_spotify_access_token', token.access_token);
-      if (token.refresh_token) localStorage.setItem('festivalfy_spotify_refresh_token', token.refresh_token);
-      localStorage.setItem('festivalfy_spotify_expires_at', String(Date.now() + (token.expires_in - 60) * 1000));
-      localStorage.removeItem('festivalfy_spotify_state');
-      localStorage.removeItem('festivalfy_spotify_verifier');
-      location.replace('../?spotify=connected');
+      if (purpose === 'user') {
+        localStorage.setItem('festivalfy_user_spotify_access_token', token.access_token);
+        if (token.refresh_token) localStorage.setItem('festivalfy_user_spotify_refresh_token', token.refresh_token);
+        localStorage.setItem('festivalfy_user_spotify_expires_at', String(Date.now() + (token.expires_in - 60) * 1000));
+        if (token.scope) localStorage.setItem('festivalfy_user_spotify_scope', token.scope);
+        localStorage.removeItem('festivalfy_user_spotify_state');
+        localStorage.removeItem('festivalfy_user_spotify_verifier');
+        localStorage.removeItem('festivalfy_spotify_auth_purpose');
+        location.replace('../?spotify_user=connected');
+      } else {
+        localStorage.setItem('festivalfy_spotify_access_token', token.access_token);
+        if (token.refresh_token) localStorage.setItem('festivalfy_spotify_refresh_token', token.refresh_token);
+        localStorage.setItem('festivalfy_spotify_expires_at', String(Date.now() + (token.expires_in - 60) * 1000));
+        localStorage.removeItem('festivalfy_spotify_state');
+        localStorage.removeItem('festivalfy_spotify_verifier');
+        localStorage.removeItem('festivalfy_spotify_auth_purpose');
+        location.replace('../?spotify=connected');
+      }
     }
 
     exchangeCode().catch(error => {

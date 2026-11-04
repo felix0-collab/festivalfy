@@ -283,6 +283,64 @@ button { -webkit-tap-highlight-color: transparent; }
 .candidate-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .candidate-copy small { margin-top: 3px; color: var(--muted); }
 
+
+.profile-header { align-items: flex-end; padding-bottom: 8px; }
+.profile-header h1 { margin: 3px 0 0; font-size: 32px; letter-spacing: -1px; }
+.profile-content { padding-top: 14px; padding-bottom: 32px; }
+.profile-intro {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 22px;
+}
+.profile-avatar {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  flex: 0 0 auto;
+  border: 1px solid #493651;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #6d2aac, #c552d2);
+  color: #fff;
+  font-size: 23px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
+}
+.profile-intro strong, .profile-intro small { display: block; }
+.profile-intro strong { font-size: 17px; }
+.profile-intro small { margin-top: 4px; color: var(--muted); line-height: 1.4; }
+.profile-service-card {
+  padding: 18px;
+  border: 1px solid rgba(30,215,96,.27);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 94% 5%, rgba(30,215,96,.15), transparent 34%),
+    linear-gradient(145deg, rgba(30,215,96,.07), #15121a 56%);
+}
+.profile-service-head { display: flex; align-items: center; gap: 12px; }
+.profile-spotify-logo {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--green);
+  color: #07140b;
+  font-size: 23px;
+  font-weight: 950;
+}
+.profile-service-copy { min-width: 0; }
+.profile-service-copy h2 { margin: 0 0 5px; font-size: 20px; }
+.profile-service-status { color: #b8afbD; font-size: 12px; font-weight: 800; }
+.profile-service-card > p { margin: 15px 0; color: #b9b0be; line-height: 1.5; }
+.profile-service-card .profile-service-note {
+  margin: 12px 3px 0;
+  color: #827987;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 @media (min-width: 600px) {
   body { padding: 24px; }
   .app-shell { min-height: 860px; border: 1px solid #2b2530; border-radius: 31px; box-shadow: 0 35px 100px #000; }

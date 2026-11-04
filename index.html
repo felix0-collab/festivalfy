@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#09080d">
   <meta name="description" content="Descubre los artistas de tus festivales y escúchalos en Spotify.">
-  <meta name="festivalfy-build" content="20261103-2218">
+  <meta name="festivalfy-build" content="20261104-1100">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Festivalfy</title>
   <link rel="preconnect" href="https://i.scdn.co">
-  <link rel="stylesheet" href="./styles.css?v=20261104-1000">
+  <link rel="stylesheet" href="./styles.css?v=20261104-1100">
 </head>
 <body>
   <main class="app-shell" id="app">
@@ -129,6 +129,42 @@
       </div>
     </section>
 
+
+    <section id="profileScreen" class="screen" aria-label="Perfil">
+      <header class="topbar profile-header">
+        <div>
+          <span class="eyebrow">Festivalfy</span>
+          <h1>Perfil</h1>
+        </div>
+      </header>
+
+      <div class="page-content profile-content">
+        <div class="profile-intro">
+          <span class="profile-avatar" aria-hidden="true">◉</span>
+          <div>
+            <strong>Tu perfil</strong>
+            <small>Conecta tus servicios de música y personaliza tu experiencia.</small>
+          </div>
+        </div>
+
+        <section class="profile-service-card" aria-labelledby="profileSpotifyTitle">
+          <div class="profile-service-head">
+            <span class="profile-spotify-logo" aria-hidden="true">♪</span>
+            <div class="profile-service-copy">
+              <h2 id="profileSpotifyTitle">Spotify</h2>
+              <div class="profile-service-status">
+                <span class="status-dot" id="profileSpotifyDot"></span>
+                <span id="profileSpotifyStatus">Spotify sin conectar</span>
+              </div>
+            </div>
+          </div>
+          <p id="profileSpotifyDetail">Conecta tu cuenta para vincular Spotify a tu perfil de Festivalfy.</p>
+          <button class="spotify-primary" id="profileSpotifyConnect" type="button">Conectar Spotify</button>
+          <p class="profile-service-note">La conexión del perfil es independiente de las herramientas de administrador. Spotify Premium será necesario para escuchar canciones completas dentro de Festivalfy.</p>
+        </section>
+      </div>
+    </section>
+
     <nav class="bottom-nav" aria-label="Navegación principal">
       <button class="nav-item active" id="navHome" type="button"><span>⌂</span>Inicio</button>
       <button class="nav-item" id="navSaved" type="button" aria-label="Abrir mi cartel"><span>♡</span>Mi cartel</button>
@@ -158,6 +194,6 @@
   <script src="./published-spotify-data-3.js?v=20261104-1000" defer></script>
   <script src="./published-spotify-data-4.js?v=20261104-1000" defer></script>
   <script src="./artist-metadata-static.js?v=20261104-1000" defer></script>
-  <script src="./festivalfy.js?v=20261104-1000" defer></script>
+  <script src="./festivalfy.js?v=20261104-1100" defer></script>
 </body>
 </html>

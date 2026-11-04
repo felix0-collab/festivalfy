@@ -15,6 +15,17 @@ const STORAGE = {
   saved: 'festivalfy_saved_festival'
 };
 
+const USER_SPOTIFY = {
+  accessToken: 'festivalfy_user_spotify_access_token',
+  refreshToken: 'festivalfy_user_spotify_refresh_token',
+  expiresAt: 'festivalfy_user_spotify_expires_at',
+  verifier: 'festivalfy_user_spotify_verifier',
+  state: 'festivalfy_user_spotify_state',
+  scope: 'festivalfy_user_spotify_scope',
+  profile: 'festivalfy_user_spotify_profile',
+  authPurpose: 'festivalfy_spotify_auth_purpose'
+};
+
 const FESTIVAL = {
   name: 'Primavera Sound Barcelona 2027',
   days: {
@@ -63,7 +74,8 @@ const screens = {
   home: document.getElementById('homeScreen'),
   festival: document.getElementById('festivalScreen'),
   lineup: document.getElementById('lineupScreen'),
-  artist: document.getElementById('artistScreen')
+  artist: document.getElementById('artistScreen'),
+  profile: document.getElementById('profileScreen')
 };
 
 let activeScreen = 'home';
@@ -99,6 +111,7 @@ function showScreen(name) {
   window.scrollTo(0, 0);
   $all('.nav-item').forEach(button => button.classList.remove('active'));
   if (name === 'home') $('#navHome').classList.add('active');
+  if (name === 'profile') $('#navProfile').classList.add('active');
 }
 
 function toast(message) {
@@ -269,6 +282,7 @@ async function connectSpotify() {
   const state = randomString(32);
   localStorage.setItem(STORAGE.verifier, verifier);
   localStorage.setItem(STORAGE.state, state);
+  localStorage.setItem(USER_SPOTIFY.authPurpose, 'admin');
   const url = new URL('https://accounts.spotify.com/authorize');
   url.search = new URLSearchParams({
     client_id: CLIENT_ID,
@@ -529,6 +543,158 @@ function exportSpotifyData() {
   toast('Datos de Spotify exportados');
 }
 
+
+function isUserSpotifyConnected() {
+  return Boolean(localStorage.getItem(USER_SPOTIFY.refreshToken) || localStorage.getItem(USER_SPOTIFY.accessToken));
+}
+
+async function refreshUserSpotifyAccessToken() {
+  const refreshToken = localStorage.getItem(USER_SPOTIFY.refreshToken);
+  if (!refreshToken) throw new Error('Vuelve a conectar tu cuenta de Spotify.');
+
+  const response = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({
+      client_id: CLIENT_ID,
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken
+    })
+  });
+  const token = await response.json();
+  if (!response.ok) throw new Error(token.error_description || token.error || 'No se pudo renovar la sesión de Spotify.');
+
+  localStorage.setItem(USER_SPOTIFY.accessToken, token.access_token);
+  if (token.refresh_token) localStorage.setItem(USER_SPOTIFY.refreshToken, token.refresh_token);
+  localStorage.setItem(USER_SPOTIFY.expiresAt, String(Date.now() + (token.expires_in - 60) * 1000));
+  if (token.scope) localStorage.setItem(USER_SPOTIFY.scope, token.scope);
+  return token.access_token;
+}
+
+async function getUserSpotifyAccessToken() {
+  const accessToken = localStorage.getItem(USER_SPOTIFY.accessToken);
+  const expiresAt = Number(localStorage.getItem(USER_SPOTIFY.expiresAt) || 0);
+  if (accessToken && Date.now() < expiresAt) return accessToken;
+  return refreshUserSpotifyAccessToken();
+}
+
+function clearUserSpotifyConnection() {
+  [
+    USER_SPOTIFY.accessToken,
+    USER_SPOTIFY.refreshToken,
+    USER_SPOTIFY.expiresAt,
+    USER_SPOTIFY.scope,
+    USER_SPOTIFY.profile,
+    USER_SPOTIFY.verifier,
+    USER_SPOTIFY.state
+  ].forEach(key => localStorage.removeItem(key));
+}
+
+async function loadUserSpotifyProfile() {
+  const token = await getUserSpotifyAccessToken();
+  let response = await fetch('https://api.spotify.com/v1/me', {
+    headers: {Authorization: `Bearer ${token}`}
+  });
+
+  if (response.status === 401) {
+    localStorage.removeItem(USER_SPOTIFY.accessToken);
+    const refreshed = await refreshUserSpotifyAccessToken();
+    response = await fetch('https://api.spotify.com/v1/me', {
+      headers: {Authorization: `Bearer ${refreshed}`}
+    });
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error?.message || 'No se pudo leer el perfil de Spotify.');
+
+  const compact = {
+    displayName: payload.display_name || 'Cuenta de Spotify',
+    product: payload.product || ''
+  };
+  localStorage.setItem(USER_SPOTIFY.profile, JSON.stringify(compact));
+  return compact;
+}
+
+function paintUserSpotifyProfile(profile = null) {
+  const connected = isUserSpotifyConnected();
+  const dot = $('#profileSpotifyDot');
+  const status = $('#profileSpotifyStatus');
+  const detail = $('#profileSpotifyDetail');
+  const button = $('#profileSpotifyConnect');
+  if (!dot || !status || !detail || !button) return;
+
+  dot.classList.toggle('connected', connected);
+  button.textContent = connected ? 'Desconectar Spotify' : 'Conectar Spotify';
+
+  if (!connected) {
+    status.textContent = 'Spotify sin conectar';
+    detail.textContent = 'Conecta tu cuenta para vincular Spotify a tu perfil de Festivalfy.';
+    return;
+  }
+
+  status.textContent = profile?.displayName || 'Spotify conectado';
+  const premium = String(profile?.product || '').toLowerCase() === 'premium';
+  detail.textContent = premium
+    ? 'Spotify Premium conectado · preparado para reproducción completa dentro de Festivalfy.'
+    : profile?.product
+      ? `Cuenta ${profile.product} conectada · la reproducción completa dentro de Festivalfy requiere Premium.`
+      : 'Cuenta conectada · la reproducción completa dentro de Festivalfy requiere Spotify Premium.';
+}
+
+async function renderUserSpotifyProfile() {
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem(USER_SPOTIFY.profile) || 'null'); } catch {}
+  paintUserSpotifyProfile(cached);
+  if (!isUserSpotifyConnected()) return;
+
+  try {
+    const profile = await loadUserSpotifyProfile();
+    paintUserSpotifyProfile(profile);
+  } catch (error) {
+    console.warn('No se pudo actualizar el perfil de Spotify del usuario.', error);
+    const detail = $('#profileSpotifyDetail');
+    if (detail) detail.textContent = 'Spotify está conectado, pero no se pudo actualizar la información de la cuenta.';
+  }
+}
+
+function openProfile() {
+  showScreen('profile');
+  renderUserSpotifyProfile();
+}
+
+async function connectUserSpotify() {
+  if (isUserSpotifyConnected()) {
+    clearUserSpotifyConnection();
+    paintUserSpotifyProfile(null);
+    toast('Spotify desconectado de tu perfil');
+    return;
+  }
+
+  const verifier = randomString(96);
+  const challenge = base64UrlEncode(await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(verifier)
+  ));
+  const state = randomString(32);
+
+  localStorage.setItem(USER_SPOTIFY.verifier, verifier);
+  localStorage.setItem(USER_SPOTIFY.state, state);
+  localStorage.setItem(USER_SPOTIFY.authPurpose, 'user');
+
+  const url = new URL('https://accounts.spotify.com/authorize');
+  url.search = new URLSearchParams({
+    client_id: CLIENT_ID,
+    response_type: 'code',
+    redirect_uri: REDIRECT_URI,
+    code_challenge_method: 'S256',
+    code_challenge: challenge,
+    state,
+    scope: 'streaming user-read-email user-read-private',
+    show_dialog: 'true'
+  }).toString();
+  location.assign(url.toString());
+}
+
 function initializeSavedFestival() {
   const saved = localStorage.getItem(STORAGE.saved) === 'true';
   $('#saveFestival').textContent = saved ? '♥' : '♡';
@@ -544,8 +710,9 @@ function bindEvents() {
   });
   $('#navHome').addEventListener('click', () => showScreen('home'));
   $('#navSaved').addEventListener('click', () => toast(localStorage.getItem(STORAGE.saved) === 'true' ? 'Primavera Sound 2027 está guardado' : 'Todavía no has guardado festivales'));
-  $('#navProfile').addEventListener('click', () => toast(isSpotifyConnected() ? spotifySummary() : 'Conecta Spotify desde la ficha del festival'));
-  $('#profileButton').addEventListener('click', () => toast(isSpotifyConnected() ? 'Spotify está conectado' : 'Spotify todavía no está conectado'));
+  $('#navProfile').addEventListener('click', openProfile);
+  $('#profileButton').addEventListener('click', openProfile);
+  $('#profileSpotifyConnect').addEventListener('click', connectUserSpotify);
   $('#festivalSearch').addEventListener('input', event => {
     $('#openFestival').classList.toggle('hidden', !'primavera sound barcelona'.includes(event.target.value.toLowerCase()));
   });
@@ -575,7 +742,11 @@ function init() {
   renderFestivalTab();
   updateSpotifyUi();
   const params = new URLSearchParams(location.search);
-  if (params.get('spotify') === 'connected') {
+  if (params.get('spotify_user') === 'connected') {
+    history.replaceState({}, '', location.pathname);
+    toast('Spotify conectado a tu perfil');
+    openProfile();
+  } else if (params.get('spotify') === 'connected') {
     history.replaceState({}, '', location.pathname);
     toast('Spotify conectado correctamente');
     openFestival();
@@ -2605,6 +2776,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
       const state = randomString(32);
       localStorage.setItem(STORAGE.verifier, verifier);
       localStorage.setItem(STORAGE.state, state);
+  localStorage.setItem(USER_SPOTIFY.authPurpose, 'admin');
 
       const url = new URL('https://accounts.spotify.com/authorize');
       url.search = new URLSearchParams({
@@ -2801,6 +2973,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     const state = randomString(32);
     localStorage.setItem(STORAGE.verifier, verifier);
     localStorage.setItem(STORAGE.state, state);
+  localStorage.setItem(USER_SPOTIFY.authPurpose, 'admin');
 
     const url = new URL('https://accounts.spotify.com/authorize');
     url.search = new URLSearchParams({

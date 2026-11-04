@@ -64,7 +64,7 @@ button { -webkit-tap-highlight-color: transparent; }
   cursor: pointer;
 }
 .round-button { width: 40px; height: 40px; border-radius: 999px; font-size: 18px; }
-.back-button { width: 42px; height: 42px; border-radius: 999px; font-size: 30px; line-height: 1; }
+.back-button { flex: 0 0 42px; width: 42px; height: 42px; border-radius: 999px; font-size: 30px; line-height: 1; }
 
 .page-content { padding: 0 20px; }
 .search-box {

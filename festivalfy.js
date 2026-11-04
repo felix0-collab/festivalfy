@@ -5968,14 +5968,6 @@ resolveAct = async function resolveActSafely(name, force = false) {
       font-size:12px;
       line-height:1.5;
     }
-    .compare-day {
-      margin:0 0 6px;
-      color:#8f8594;
-      font-size:12px;
-      font-weight:850;
-      letter-spacing:.03em;
-      text-transform:uppercase;
-    }
     .compare-empty {
       padding:14px;
       border:1px dashed #332b3b;
@@ -6502,8 +6494,12 @@ resolveAct = async function resolveActSafely(name, force = false) {
     const groups = groupByDay(names);
     const body = groups.length
       ? groups.map(([day, artists]) => `
-          <p class="compare-day">${escapeHtml(DAY_LABELS[day])}</p>
-          <div class="saved-artist-list">${artists.map(artistRow).join('')}</div>
+          <section class="saved-day-group">
+            <div class="saved-day-heading">
+              <h2>${escapeHtml(DAY_LABELS[day])}</h2>
+            </div>
+            <div class="saved-artist-list">${artists.map(artistRow).join('')}</div>
+          </section>
         `).join('')
       : '<div class="compare-empty">No hay ninguno en este grupo.</div>';
 

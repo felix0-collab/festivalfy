@@ -26,6 +26,17 @@ const USER_SPOTIFY = {
   authPurpose: 'festivalfy_spotify_auth_purpose'
 };
 
+const USER_SPOTIFY_PLAYBACK_REPAIR_KEY = 'festivalfy_user_spotify_playback_repair';
+const USER_SPOTIFY_PLAYBACK_REPAIR_VERSION = '20261104-1905';
+if (
+  localStorage.getItem(USER_SPOTIFY_PLAYBACK_REPAIR_KEY) !== USER_SPOTIFY_PLAYBACK_REPAIR_VERSION
+  && localStorage.getItem(USER_SPOTIFY.refreshToken)
+) {
+  localStorage.removeItem(USER_SPOTIFY.accessToken);
+  localStorage.removeItem(USER_SPOTIFY.expiresAt);
+  localStorage.setItem(USER_SPOTIFY_PLAYBACK_REPAIR_KEY,USER_SPOTIFY_PLAYBACK_REPAIR_VERSION);
+}
+
 const FESTIVAL = {
   name: 'Primavera Sound Barcelona 2027',
   days: {
@@ -4119,7 +4130,10 @@ resolveAct = async function resolveActSafely(name, force = false) {
         if (activePremiumUi?.status) activePremiumUi.status.textContent = message || 'Spotify no pudo reproducir esta canción.';
       });
       playerInstance.addListener('autoplay_failed', () => {
-        if (activePremiumUi?.status) activePremiumUi.status.textContent = 'Pulsa reproducir para iniciar el audio.';
+        if (activePremiumUi?.status) {
+          activePremiumUi.status.textContent='Safari ha bloqueado el audio · pulsa reproducir otra vez';
+          activePremiumUi.main.disabled=false;
+        }
       });
 
       const connected = await playerInstance.connect();
@@ -4172,6 +4186,56 @@ resolveAct = async function resolveActSafely(name, force = false) {
       throw error;
     }
     return payload;
+  }
+
+  async function startUrisOnFestivalfyDevice(uris, reason='playback') {
+    if (!Array.isArray(uris) || !uris.length) {
+      throw new Error('No hay canciones disponibles para reproducir.');
+    }
+    if (!webPlayer || !webDeviceId) await ensureWebPlayer();
+
+    const run=async () => {
+      if (!webDeviceId) {
+        const error=new Error('El reproductor de Spotify no está listo.');
+        error.status=404;
+        throw error;
+      }
+
+      // Always make Festivalfy the active Spotify Connect device first.
+      await userPlaybackRequest('/me/player',{
+        method:'PUT',
+        body:{device_ids:[webDeviceId],play:false}
+      });
+
+      await new Promise(resolve => window.setTimeout(resolve,180));
+
+      // Start playback with a single decisive Player API command.
+      await userPlaybackRequest(
+        `/me/player/play?device_id=${encodeURIComponent(webDeviceId)}`,
+        {method:'PUT',body:{uris}}
+      );
+
+      // iOS can keep the transferred SDK paused even after the Web API command.
+      try { await webPlayer?.resume(); } catch {}
+
+      // Shuffle is not part of the critical start path.
+      window.setTimeout(() => {
+        if (!webDeviceId) return;
+        userPlaybackRequest(
+          `/me/player/shuffle?state=false&device_id=${encodeURIComponent(webDeviceId)}`,
+          {method:'PUT'}
+        ).catch(() => {});
+      },300);
+    };
+
+    try {
+      await run();
+    } catch (error) {
+      if (![404,502,503].includes(error?.status)) throw error;
+      await recoverWebPlayer(reason);
+      try { webPlayer?.activateElement(); } catch {}
+      await run();
+    }
   }
 
   function trackBelongsToProfile(track, profileId) {
@@ -4273,42 +4337,8 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
     ui.status.textContent='Iniciando reproducción completa…';
 
-    const playOnDevice=async () => {
-      if (!webDeviceId) await recoverWebPlayer('missing_device');
-      try {
-        await userPlaybackRequest(
-          `/me/player/shuffle?state=false&device_id=${encodeURIComponent(webDeviceId)}`,
-          {method:'PUT'}
-        );
-      } catch {}
-      return userPlaybackRequest(
-        `/me/player/play?device_id=${encodeURIComponent(webDeviceId)}`,
-        {method:'PUT', body:{uris:trackUris}}
-      );
-    };
-
-    const transferAndPlay=async () => {
-      await userPlaybackRequest('/me/player',{
-        method:'PUT',
-        body:{device_ids:[webDeviceId],play:false}
-      });
-      await new Promise(resolve => window.setTimeout(resolve,320));
-      await playOnDevice();
-    };
-
     try {
-      try {
-        await playOnDevice();
-      } catch (error) {
-        if (error.status !== 404) throw error;
-        try {
-          await transferAndPlay();
-        } catch (transferError) {
-          if (![404,502,503].includes(transferError.status)) throw transferError;
-          await recoverWebPlayer('stale_device');
-          await transferAndPlay();
-        }
-      }
+      await startUrisOnFestivalfyDevice(trackUris,'artist_start');
 
       ui.started=true;
       ui.status.textContent='Spotify Premium · reproducción completa';
@@ -4390,6 +4420,8 @@ resolveAct = async function resolveActSafely(name, force = false) {
       sourceArtistName:sourceArtistName || '',
       started:currentPlaybackProfileId === profile.id
     };
+
+    ui.main.disabled=true;
 
     if (ui.started && latestPlaybackState) {
       activePremiumUi=ui;
@@ -4543,41 +4575,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     latestPlaybackState=null;
     updateMiniVisibility();
 
-    const playOnDevice=async () => {
-      if (!webDeviceId) await recoverWebPlayer('festival_radio_missing_device');
-      try {
-        await userPlaybackRequest(
-          `/me/player/shuffle?state=false&device_id=${encodeURIComponent(webDeviceId)}`,
-          {method:'PUT'}
-        );
-      } catch {}
-      return userPlaybackRequest(
-        `/me/player/play?device_id=${encodeURIComponent(webDeviceId)}`,
-        {method:'PUT',body:{uris:[track.uri]}}
-      );
-    };
-
-    const transferAndPlay=async () => {
-      await userPlaybackRequest('/me/player',{
-        method:'PUT',
-        body:{device_ids:[webDeviceId],play:false}
-      });
-      await new Promise(resolve => window.setTimeout(resolve,260));
-      await playOnDevice();
-    };
-
-    try {
-      await playOnDevice();
-    } catch (error) {
-      if (error.status !== 404) throw error;
-      try {
-        await transferAndPlay();
-      } catch (transferError) {
-        if (![404,502,503].includes(transferError.status)) throw transferError;
-        await recoverWebPlayer('festival_radio_stale_device');
-        await transferAndPlay();
-      }
-    }
+    await startUrisOnFestivalfyDevice([track.uri],'festival_radio_start');
 
     window.setTimeout(async () => {
       try {

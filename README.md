@@ -72,3 +72,8 @@ Los enlaces llevan una huella del catálogo. Si cambia el conjunto de actuacione
 
 - Verificar país y género del catálogo estático frente a una fuente (MusicBrainz o Spotify).
 - Cinco actuaciones sin perfil: Picture live, Dulce, PLO Man, Livwutang b2b Konduku y mad miran b2b DJ Zero.
+
+
+## Recuperación del reproductor compartido
+
+Radio y fichas de artista comparten un único Web Playback SDK. El arranque usa una ruta común: activar el elemento desde el gesto del usuario, transferir Spotify Connect al dispositivo Festivalfy, iniciar las URIs explícitas y pedir al SDK que reanude el audio. El cambio de shuffle se ejecuta después del arranque para evitar competir con el comando de reproducción. Esta versión fuerza además una renovación silenciosa y única del access token conservando el refresh token y la conexión del usuario.

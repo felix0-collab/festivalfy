@@ -351,21 +351,23 @@ button { -webkit-tap-highlight-color: transparent; }
 /* Festivalfy UI refinement: centered filters + compact artist detail */
 #lineupScreen .filter-bar {
   position: relative;
-  justify-content: center;
+  justify-content: flex-start;
   min-height: 40px;
+  margin: 18px 0 18px;
 }
 #lineupScreen .filter-toggle {
-  margin-inline: auto;
+  margin: 0;
 }
 #lineupScreen .filter-clear {
   position: absolute;
   right: 0;
-  top: 0;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 #artistScreen .artist-detail-hero {
-  height: clamp(250px, 34svh, 310px);
-  background-position: center 24%;
+  height: clamp(300px, 39svh, 350px);
+  background-position: center 28%;
 }
 #artistScreen .artist-detail-content {
   padding: 14px 20px 28px;
@@ -403,7 +405,7 @@ button { -webkit-tap-highlight-color: transparent; }
 }
 @media (max-height: 720px) {
   #artistScreen .artist-detail-hero {
-    height: 230px;
+    height: 275px;
   }
   #artistScreen .artist-detail-content {
     padding-top: 11px;

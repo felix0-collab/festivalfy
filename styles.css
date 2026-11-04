@@ -120,7 +120,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .festival-card .eyebrow { position: absolute; top: 25px; left: 25px; }
 .festival-title {
   position: absolute;
-  top: 96px;
+  top: 72px;
   left: 25px;
   margin: 0;
   font-size: 44px;

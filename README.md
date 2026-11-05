@@ -50,13 +50,23 @@ Los filtros se borran al salir de la lista, pero se conservan al entrar en la fi
 
 Los géneros del catálogo se agrupan en siete familias definidas en `GENRE_FAMILIES` dentro de `festivalfy.js`.
 
-## Radio del festival dinámica
+## Radio: playlist fija de 100 canciones y mezclas de 20
 
-La acción principal de **Radio del festival** crea dentro de Festivalfy una mezcla de hasta 20 canciones de perfiles de Spotify verificados del cartel. Antes de aceptar una canción, el código comprueba que el ID del artista de la canción coincide exactamente con el perfil publicado. La mezcla intenta usar un artista distinto por canción antes de repetir.
+La Radio usa una lista fija de 100 canciones de artistas verificados del cartel. La selección compara Spotify Artist IDs, no nombres. Se permiten colaboraciones cuando al menos un artista acreditado pertenece al cartel. Se excluyen duplicados por URI, episodios, archivos locales y canciones marcadas como no reproducibles.
 
-La generación es progresiva: en cuanto se encuentra la primera canción válida, Festivalfy empieza a reproducirla y continúa buscando y añadiendo el resto mediante la cola de Spotify. Así no es necesario esperar a tener las 50 canciones antes de escuchar. Si el usuario inicia manualmente otro artista o genera una nueva mezcla, la generación anterior se cancela para no contaminar la nueva reproducción.
+*Escuchar mezcla* selecciona 20 canciones; volver a pulsarlo reinicia la misma selección durante la sesión. *Nueva mezcla* elige otras 20. El historial del navegador evita repetir canciones durante las primeras cinco mezclas. Al completar las 100 comienza otra vuelta, sin repetir ninguna canción del grupo inmediatamente anterior. El historial se conserva al recargar cuando el almacenamiento local está disponible. La reproducción envía una lista explícita de 20 URIs a Spotify, con shuffle y repeat desactivados; no arranca el contexto completo de la playlist.
 
-Las canciones verificadas encontradas se conservan en memoria durante la sesión para acelerar las siguientes mezclas. El Web Playback SDK se prepara en segundo plano y el toque sobre *Escuchar mezcla* activa el elemento de reproducción de forma síncrona antes de buscar canciones, para respetar las restricciones de autoplay de Safari/iOS. Al tocar el mini reproductor mientras suena la Radio, Festivalfy usa mapas directos creados junto con la propia mezcla y un índice global de todos los perfiles verificados del cartel. Si el Web Playback SDK no aporta suficientes datos, consulta una sola vez la canción actual por su ID en la Web API, cruza sus artistas con ese índice y guarda el resultado en caché. Cada cambio de canción deja además la ficha resuelta guardada en el botón del mini reproductor, desde donde puede guardarse en *Mi cartel*. *Nueva mezcla* vuelve a elegir artistas/canciones. La playlist pública existente sigue disponible como alternativa mediante *Abrir playlist en Spotify*.
+### Preparar la lista una sola vez
+
+1. Conecta la cuenta propietaria de Spotify desde administración y pulsa *Preparar playlist de 100 canciones*. Se leen y conservan las canciones válidas existentes, y se buscan las que faltan entre perfiles verificados del cartel. Solo se escribe la playlist cuando hay exactamente 100 canciones válidas distintas; si no se alcanza esa cifra o falla la lectura, no se sustituye por una lista parcial.
+2. Pulsa *Exportar las 100 canciones para publicar*. Si ya existe una exportación de canciones con sus URIs y Artist IDs, se puede reutilizar en vez de generar otra lista.
+3. Publica el archivo exportado como `radio-tracks.json` en la raíz del repositorio. Contiene metadatos, nunca tokens ni audio. La cuenta administradora puede probar las mezclas desde el mismo navegador antes de publicar gracias a la copia local.
+
+La lista publicada es necesaria porque Spotify restringe la lectura de los elementos de una playlist al propietario y sus colaboradores. Los visitantes reproducen las URIs publicadas con su propia conexión Premium, sin utilizar credenciales del administrador. Si falta una lista válida de 100 canciones, la Radio muestra un aviso y no reproduce una mezcla cuya procedencia no pueda verificar. El archivo incluido inicialmente tiene `tracks: []`: no constituye una playlist de 100 canciones ya generada. No publicar este cambio en producción hasta completar ese archivo y validar la reproducción con Premium.
+
+No hay actualizaciones periódicas. Ni *Escuchar mezcla* ni *Nueva mezcla* modifican la playlist. Las fichas de artistas mantienen su reproductor existente.
+
+Para comprobar las reglas y las llamadas de reproducción con Spotify simulado: `node --test tests/radio.test.cjs`. Estas pruebas no verifican audio real, restricciones regionales ni permisos de una cuenta Spotify.
 
 ## Generar imagen de Mi cartel
 
@@ -85,7 +95,7 @@ El módulo compartido de reproducción se restauró a la versión estable de ref
 
 ## Reproducción sin consultas de catálogo
 
-Para evitar que la cuota de Spotify Development Mode bloquee la reproducción, Festivalfy ya no necesita buscar canciones antes de empezar. Las fichas reproducen directamente el contexto oficial del artista (`spotify:artist:<id>`) y la Radio reproduce el contexto de la playlist verificada del festival. La Radio activa shuffle y limita localmente cada sesión a 20 canciones. De esta forma, pasar de Radio a artista reemplaza el contexto completo y no deja una cola de Radio pendiente.
+Para evitar que la cuota de Spotify Development Mode bloquee la reproducción, Festivalfy ya no necesita buscar canciones antes de empezar. Las fichas reproducen directamente el contexto oficial del artista (`spotify:artist:<id>`) y la Radio reproduce una selección explícita de la lista verificada del festival. La Radio selecciona 20 URIs de la lista publicada de 100 canciones, sin consultas de catálogo al reproducir. De esta forma, pasar de Radio a artista reemplaza el contexto completo y no deja una cola de Radio pendiente.
 
 Los errores `429` conservan ahora el campo `reason` de Spotify, incluido `QUOTA_EXCEEDED`, para no confundir una limitación temporal de API con la ausencia de canciones del artista.
 

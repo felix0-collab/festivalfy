@@ -2531,7 +2531,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
 (() => {
   const PLAYLIST_ID = '7lxl2eyUucpEXVs4PHbv6e';
   const PLAYLIST_URL = `https://open.spotify.com/playlist/${PLAYLIST_ID}`;
-  const TARGET_TRACKS = 20;
+  const TARGET_TRACKS = 100;
   const RADIO_STORAGE_KEY = 'festivalfy_radio_status_v1';
   const RADIO_SCOPE = 'playlist-modify-public';
 
@@ -2683,7 +2683,8 @@ resolveAct = async function resolveActSafely(name, force = false) {
       <span aria-hidden="true">↗</span>
     </a>
     <div class="festival-radio-admin" id="festivalRadioAdmin">
-      <button id="festivalRadioUpdate" type="button">Actualizar mezcla aleatoria</button>
+      <button id="festivalRadioUpdate" type="button">Preparar playlist de 100 canciones</button>
+      <button id="festivalRadioExport" type="button" disabled>Exportar las 100 canciones para publicar</button>
       <div class="festival-radio-progress" id="festivalRadioProgress" hidden aria-live="polite">
         <div class="festival-radio-track"><span id="festivalRadioProgressFill"></span></div>
         <small id="festivalRadioProgressText">Preparando la radio…</small>
@@ -2693,6 +2694,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
   tabs.before(card);
 
   const updateButton = document.getElementById('festivalRadioUpdate');
+  const exportButton = document.getElementById('festivalRadioExport');
   const progress = document.getElementById('festivalRadioProgress');
   const progressFill = document.getElementById('festivalRadioProgressFill');
   const progressText = document.getElementById('festivalRadioProgressText');
@@ -2708,6 +2710,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
   function renderSavedState() {
     const state = readSavedState();
+    exportButton.disabled = state?.tracks?.length !== TARGET_TRACKS;
     if (!state?.updatedAt || !state?.trackCount) {
       adminState.textContent = 'La playlist está vinculada. Conecta Spotify y genera la primera mezcla.';
       return;
@@ -2716,7 +2719,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
       dateStyle: 'medium',
       timeStyle: 'short'
     }).format(new Date(state.updatedAt));
-    adminState.textContent = `${state.trackCount} canciones · actualizada ${date}.`;
+    adminState.textContent = `${state.trackCount} canciones · actualizada ${date}. Exporta radio-tracks.json y publícalo para activar las mezclas de 20 para todos.`;
   }
 
   function setAdminState(message, isError = false) {
@@ -2745,11 +2748,13 @@ resolveAct = async function resolveActSafely(name, force = false) {
   }
 
   function availableProfiles() {
+    const acts = new Set(allArtists());
     const profiles = new Map();
-    Object.values(cache || {}).forEach(entry => {
+    Object.entries(cache || {}).forEach(([act,entry]) => {
+      if (!acts.has(act) || entry?.status !== 'verified') return;
       (entry?.profiles || []).forEach(profile => {
         if (!profile?.id || !profile?.name) return;
-        if (!profiles.has(profile.id)) profiles.set(profile.id, profile);
+        if (!profiles.has(profile.id)) profiles.set(profile.id, {...profile,act});
       });
     });
     return shuffle([...profiles.values()]);
@@ -2786,12 +2791,18 @@ resolveAct = async function resolveActSafely(name, force = false) {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       if (response.status === 403) {
-        throw new Error('Spotify no ha concedido permiso para modificar esta playlist. Desconecta Spotify, vuelve a conectarlo y acepta el nuevo permiso.');
+        const error=new Error('Spotify no ha concedido permiso para acceder a esta playlist. Desconecta Spotify, vuelve a conectarlo y acepta el nuevo permiso.');
+        error.status=response.status;
+        throw error;
       }
-      throw new Error(payload.error?.message || `Spotify respondió con el código ${response.status}.`);
+      const error=new Error(payload.error?.message || `Spotify respondió con el código ${response.status}.`);
+      error.status=response.status;
+      throw error;
     }
     return payload;
   }
+
+  const radioSearchCache = new Map();
 
   async function chooseTrack(profile, usedTrackIds) {
     const cleanName = String(profile.name).replace(/["\\]/g, ' ').trim();
@@ -2801,21 +2812,46 @@ resolveAct = async function resolveActSafely(name, force = false) {
       market: 'ES',
       limit: '10'
     });
-    const payload = await spotifyFetch(`/search?${params}`);
-    const matches = (payload.tracks?.items || []).filter(track => {
-      if (!track?.id || !track?.uri || usedTrackIds.has(track.id)) return false;
-      if (track.is_local || track.is_playable === false) return false;
-      return (track.artists || []).some(artist => artist.id === profile.id);
-    });
+    let payload = radioSearchCache.get(profile.id);
+    if (!payload) {
+      payload = await spotifyWrite(`/search?${params}`);
+      radioSearchCache.set(profile.id,payload);
+    }
+    const matches = window.FestivalfyRadioMix.verifiedTracks(payload.tracks?.items,[profile])
+      .filter(track => !usedTrackIds.has(track.id));
     if (!matches.length) return null;
     const choice = matches[crypto.getRandomValues(new Uint32Array(1))[0] % matches.length];
-    return {
-      id: choice.id,
-      uri: choice.uri,
-      name: choice.name,
-      artistId: profile.id,
-      artistName: profile.name
-    };
+    return choice;
+  }
+
+  async function readPlaylistTracks() {
+    const tracks=[];
+    let offset=0;
+    while (true) {
+      const page=await spotifyWrite(`/playlists/${PLAYLIST_ID}/items?limit=50&offset=${offset}&market=ES`);
+      const items=page.items || [];
+      tracks.push(...items.filter(item => !item.is_local).map(item => item.item || item.track).filter(Boolean));
+      if (!page.next) break;
+      if (!items.length) throw new Error('Spotify no ha podido leer la playlist completa. No se ha modificado.');
+      offset+=items.length;
+    }
+    return window.FestivalfyRadioMix.verifiedTracks(tracks,availableProfiles()).slice(0,TARGET_TRACKS);
+  }
+
+  function exportRadioTracks() {
+    const state=readSavedState();
+    if (state?.tracks?.length !== TARGET_TRACKS) return;
+    const blob=new Blob([JSON.stringify({
+      playlistId:PLAYLIST_ID,updatedAt:state.updatedAt,tracks:state.tracks
+    },null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=url;
+    link.download='radio-tracks.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url),1000);
   }
 
   async function updateFestivalRadio() {
@@ -2836,36 +2872,44 @@ resolveAct = async function resolveActSafely(name, force = false) {
     setAdminState('');
     setProgress(0, TARGET_TRACKS, 'Preparando artistas…');
 
+    radioSearchCache.clear();
     const selected = [];
     const usedTrackIds = new Set();
     let checked = 0;
 
     try {
-      for (const profile of profiles) {
-        if (selected.length >= TARGET_TRACKS) break;
-        checked += 1;
-        setProgress(
-          selected.length,
-          TARGET_TRACKS,
-          `${selected.length} de ${TARGET_TRACKS} canciones · buscando ${profile.name}`
-        );
+      // Keep the valid tracks already present, then fill the fixed pool to 100.
+      selected.push(...await readPlaylistTracks());
+      selected.forEach(track => usedTrackIds.add(track.id));
+      for (let round=0; round<10 && selected.length<TARGET_TRACKS; round+=1) {
+        const before=selected.length;
+        for (const profile of profiles) {
+          if (selected.length >= TARGET_TRACKS) break;
+          checked += 1;
+          setProgress(
+            selected.length,
+            TARGET_TRACKS,
+            `${selected.length} de ${TARGET_TRACKS} canciones · buscando ${profile.name}`
+          );
 
-        try {
-          const track = await chooseTrack(profile, usedTrackIds);
-          if (track) {
-            selected.push(track);
-            usedTrackIds.add(track.id);
+          try {
+            const track = await chooseTrack(profile, usedTrackIds);
+            if (track) {
+              selected.push(track);
+              usedTrackIds.add(track.id);
+            }
+          } catch (error) {
+            console.warn('Festival radio track search failed for', profile.name, error);
+            if ([401,403,429].includes(error.status) || /conecta|permiso|token|sesión|session/i.test(error.message || '')) throw error;
           }
-        } catch (error) {
-          console.warn('Festival radio track search failed for', profile.name, error);
-          if (/conecta|permiso|token|sesión|session/i.test(error.message || '')) throw error;
-        }
 
-        await sleep(90);
+          await sleep(90);
+        }
+        if (selected.length === before) break;
       }
 
-      if (selected.length < 10) {
-        throw new Error('No se han encontrado suficientes canciones válidas para crear la radio.');
+      if (selected.length !== TARGET_TRACKS) {
+        throw new Error(`Solo se han encontrado ${selected.length} de 100 canciones verificadas. La playlist no se ha modificado.`);
       }
 
       const shuffledTracks = shuffle(selected);
@@ -2880,12 +2924,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
         trackCount: shuffledTracks.length,
         checkedArtists: checked,
         updatedAt: new Date().toISOString(),
-        tracks: shuffledTracks.map(track => ({
-          id: track.id,
-          name: track.name,
-          artistId: track.artistId,
-          artistName: track.artistName
-        }))
+        tracks: shuffledTracks
       };
       localStorage.setItem(RADIO_STORAGE_KEY, JSON.stringify(savedState));
 
@@ -2898,7 +2937,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
       toast(error.message || 'No se pudo actualizar la radio');
     } finally {
       updateButton.disabled = false;
-      updateButton.textContent = 'Actualizar mezcla aleatoria';
+      updateButton.textContent = 'Preparar playlist de 100 canciones';
       window.setTimeout(() => {
         progress.hidden = true;
         progressFill.style.width = '0%';
@@ -2947,6 +2986,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
   }
 
   updateButton.addEventListener('click', updateFestivalRadio);
+  exportButton.addEventListener('click', exportRadioTracks);
   renderSavedState();
 
   window.FESTIVALFY_RADIO = Object.freeze({
@@ -3097,7 +3137,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     } catch (error) {
       const message = error.message || 'No se pudo comprobar el acceso a la playlist.';
       originalUpdateButton.disabled = false;
-      originalUpdateButton.textContent = 'Actualizar mezcla aleatoria';
+      originalUpdateButton.textContent = 'Preparar playlist de 100 canciones';
       setRadioState(message, true);
       toast(message);
     }
@@ -3380,6 +3420,10 @@ resolveAct = async function resolveActSafely(name, force = false) {
   const MIN_STRICT_ARTIST_URIS=2;
   const FESTIVAL_RADIO_SOURCE_ID = '__festival_radio__';
   const FESTIVAL_RADIO_PLAYLIST_URI = 'spotify:playlist:7lxl2eyUucpEXVs4PHbv6e';
+  const RADIO_MIX_HISTORY_KEY='festivalfy_radio_mix_history_v1';
+  let festivalRadioHasStarted=false;
+  let festivalRadioStarting=false;
+  let festivalRadioMemoryHistory={};
   let currentFestivalRadioMix = null;
   let festivalRadioGeneration = 0;
   let festivalRadioSessionLimit = 20;
@@ -3894,6 +3938,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     festivalRadioTracksPlayed=0;
     festivalRadioLastTrackUri='';
     festivalRadioSessionEnding=false;
+    festivalRadioHasStarted=false;
   }
 
   async function monitorFestivalRadioSession(state) {
@@ -3906,13 +3951,29 @@ resolveAct = async function resolveActSafely(name, force = false) {
     const track=state.track_window?.current_track;
     if (!track?.uri) return;
 
+    const selected=currentFestivalRadioMix || [];
+    const belongs=selected.some(item => item.uri === track.uri || item.id === track.linked_from?.id);
+    if (festivalRadioStarting) {
+      if (!belongs) return;
+      festivalRadioStarting=false;
+    }
+    if (belongs) festivalRadioHasStarted=true;
+    if (!belongs) {
+      if (festivalRadioHasStarted && !state.paused) {
+        festivalRadioSessionEnding=true;
+        try { await webPlayer?.pause(); } catch {}
+        toast('Fin de la mezcla · pulsa Nueva mezcla para escuchar otras 20 canciones');
+      }
+      return;
+    }
+
     if (track.uri !== festivalRadioLastTrackUri) {
       festivalRadioLastTrackUri=track.uri;
       festivalRadioTracksPlayed+=1;
     }
 
     if (
-      festivalRadioTracksPlayed >= festivalRadioSessionLimit
+      (track.uri === selected[selected.length-1]?.uri || track.linked_from?.id === selected[selected.length-1]?.id)
       && !state.paused
       && state.duration > 0
       && state.position >= Math.max(0,state.duration-450)
@@ -4921,27 +4982,60 @@ resolveAct = async function resolveActSafely(name, force = false) {
     }
   }
 
-  async function playFestivalRadioMix({newMix=false,targetTracks=20,onProgress=null}={}) {
+  async function loadFestivalRadioPool() {
+    const rules=window.FestivalfyRadioMix;
+    let data;
+    try {
+      const response=await fetch('./radio-tracks.json',{cache:'no-store'});
+      if (response.ok) data=await response.json();
+    } catch {}
+    let tracks=data?.playlistId === rules.PLAYLIST_ID
+      ? rules.verifiedTracks(data.tracks,verifiedFestivalProfiles()) : [];
+    if (tracks.length !== rules.POOL_SIZE) {
+      // The owner can test immediately after preparing the playlist, before
+      // publishing its exported metadata. Visitor playback never reads it
+      // through the owner-only Spotify playlist endpoint.
+      let saved;
+      try { saved=JSON.parse(localStorage.getItem('festivalfy_radio_status_v1') || 'null'); } catch {}
+      tracks=saved?.playlistId === rules.PLAYLIST_ID
+        ? rules.verifiedTracks(saved.tracks,verifiedFestivalProfiles()) : [];
+    }
+    if (tracks.length !== rules.POOL_SIZE) {
+      throw new Error('La lista de 100 canciones todavía no está publicada. El administrador debe prepararla y publicar el archivo exportado.');
+    }
+    return tracks;
+  }
+
+  async function playFestivalRadioMix({newMix=false,onProgress=null}={}) {
     if (!isUserSpotifyConnected() || !userSpotifyHasPlaybackScopes()) {
       const error=new Error('Conecta Spotify Premium desde Perfil para escuchar la Radio del festival.');
       error.code='SPOTIFY_PROFILE_REQUIRED';
       throw error;
     }
 
-    ++festivalRadioGeneration;
+    const generation=++festivalRadioGeneration;
+    const pool=await loadFestivalRadioPool();
+    const poolKey=pool.map(track => track.uri).sort().join(',');
+    let history=festivalRadioMemoryHistory.poolKey === poolKey ? festivalRadioMemoryHistory : {};
+    try {
+      const saved=JSON.parse(localStorage.getItem(RADIO_MIX_HISTORY_KEY) || '{}');
+      if (saved.poolKey === poolKey) history=saved;
+    } catch {}
+    const reuse=!newMix && currentFestivalRadioMix?.length === 20
+      && currentFestivalRadioMix.every(track => pool.some(item => item.uri === track.uri));
+    const selection=reuse ? {tracks:currentFestivalRadioMix,history:null}
+      : window.FestivalfyRadioMix.selectMix(pool,history);
+    if (generation !== festivalRadioGeneration) throw new Error('Se ha cancelado la mezcla porque ha cambiado la reproducción.');
     artistQueueLockGeneration+=1;
     artistQueueLockPromise=null;
     artistQueueLockedProfileId='';
     artistQueueRetryAt=0;
-    resetFestivalRadioSession(targetTracks);
-    currentFestivalRadioMix=[{
-      uri:FESTIVAL_RADIO_PLAYLIST_URI,
-      profileId:'',
-      artistName:'Radio del festival',
-      act:''
-    }];
+    resetFestivalRadioSession(selection.tracks.length);
+    festivalRadioStarting=true;
+    currentFestivalRadioMix=null;
 
     if (!webPlayer || !webDeviceId) await ensureWebPlayer();
+    if (generation !== festivalRadioGeneration) throw new Error('Se ha cancelado la mezcla porque ha cambiado la reproducción.');
     try { webPlayer.activateElement(); } catch {}
 
     currentPlaybackProfileId=FESTIVAL_RADIO_SOURCE_ID;
@@ -4954,19 +5048,18 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
     const playOnDevice=async () => {
       if (!webDeviceId) await recoverWebPlayer('festival_radio_missing_device');
-
-      // Shuffle is useful but non-critical: playback must still start if this
-      // command is temporarily rejected.
-      try {
-        await userPlaybackRequest(
-          `/me/player/shuffle?state=true&device_id=${encodeURIComponent(webDeviceId)}`,
-          {method:'PUT'}
-        );
-      } catch {}
-
+      if (generation !== festivalRadioGeneration) throw new Error('La reproducción ha cambiado.');
+      await userPlaybackRequest(
+        `/me/player/shuffle?state=false&device_id=${encodeURIComponent(webDeviceId)}`,{method:'PUT'}
+      );
+      await userPlaybackRequest(
+        `/me/player/repeat?state=off&device_id=${encodeURIComponent(webDeviceId)}`,{method:'PUT'}
+      );
+      if (generation !== festivalRadioGeneration) throw new Error('La reproducción ha cambiado.');
+      currentFestivalRadioMix=selection.tracks;
       return userPlaybackRequest(
         `/me/player/play?device_id=${encodeURIComponent(webDeviceId)}`,
-        {method:'PUT',body:{context_uri:FESTIVAL_RADIO_PLAYLIST_URI}}
+        {method:'PUT',body:{uris:selection.tracks.map(track => track.uri)}}
       );
     };
 
@@ -4993,13 +5086,21 @@ resolveAct = async function resolveActSafely(name, force = false) {
         }
       }
     } catch (error) {
-      currentFestivalRadioMix=null;
+      if (generation === festivalRadioGeneration) currentFestivalRadioMix=null;
       if (error?.status === 429 && error?.reason === 'QUOTA_EXCEEDED') {
         const quotaError=new Error('Spotify ha alcanzado temporalmente la cuota de desarrollo. La reproducción volverá a estar disponible cuando se libere.');
         quotaError.code='SPOTIFY_QUOTA';
         throw quotaError;
       }
       throw error;
+    }
+
+    if (generation !== festivalRadioGeneration) throw new Error('La reproducción ha cambiado.');
+    if (selection.history) {
+      festivalRadioMemoryHistory={poolKey,...selection.history};
+      try {
+        localStorage.setItem(RADIO_MIX_HISTORY_KEY,JSON.stringify(festivalRadioMemoryHistory));
+      } catch {}
     }
 
     onProgress?.({
@@ -5011,9 +5112,9 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
     return {
       trackCount:festivalRadioSessionLimit,
-      artistCount:null,
+      artistCount:new Set(selection.tracks.map(track => track.profileId)).size,
       building:false,
-      mode:'playlist'
+      mode:'fixed-pool'
     };
   }
 
@@ -5194,9 +5295,9 @@ resolveAct = async function resolveActSafely(name, force = false) {
     if (progress.phase === 'first') {
       return `Buscando la primera canción · ${progress.artist || 'artista verificado'}…`;
     }
-    if (progress.phase === 'starting') return 'Primera canción lista · iniciando reproducción…';
+    if (progress.phase === 'starting') return 'Iniciando la mezcla de 20 canciones…';
     if (progress.phase === 'playing') {
-      return `Sonando ${progress.artist || 'la primera canción'} · creando el resto de la mezcla…`;
+      return 'Sonando · 20 canciones seleccionadas.';
     }
     if (progress.phase === 'queueing' || progress.phase === 'queued') {
       return `Sonando · ${progress.found} de ${progress.target} canciones preparadas…`;
@@ -5232,8 +5333,8 @@ resolveAct = async function resolveActSafely(name, force = false) {
         targetTracks:20,
         onProgress:progress => setStatus(progressLabel(progress))
       });
-      if (result.mode === 'playlist') {
-        setStatus(`Sonando · ${result.trackCount} canciones por sesión.`);
+      if (result.mode === 'fixed-pool') {
+        setStatus(`Sonando · ${result.trackCount} de 100 canciones. Nueva mezcla elige otras 20.`);
       } else if (result.building) {
         setStatus('Ya está sonando · completando la mezcla en segundo plano…');
       } else {
@@ -5267,7 +5368,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     player.prepareFestivalRadio().then(() => {
       playButton.disabled=false;
       playButton.textContent='▶ Escuchar mezcla';
-      setStatus('20 canciones · hasta 20 artistas verificados del cartel.');
+      setStatus('Mezclas de 20 canciones · playlist fija de 100 canciones del festival.');
     }).catch(error => {
       console.warn('Festivalfy radio player preparation failed',error);
       playButton.disabled=false;

@@ -72,7 +72,7 @@ Quien abra el enlace puede poner un nombre al cartel recibido y Festivalfy lo gu
 
 Los enlaces llevan una huella del catálogo. Si cambia el conjunto de actuaciones, un enlace antiguo se rechaza con un aviso en lugar de arriesgarse a mostrar artistas equivocados.
 
-Las comparaciones actualizan sus grupos y conservan la posición al añadir artistas o al volver de una ficha. La selección se realiza con el corazón de la ficha; el gesto de mantener pulsado y deslizar se ha retirado.
+Las comparaciones actualizan sus grupos y conservan la posición al añadir artistas o al volver de una ficha. En la lista de artistas de cada día hay un corazón sin fondo, antes del botón de Spotify: vacío para añadir a Mi cartel y relleno rosa cuando está guardado. Al volver a pulsarlo se quita de la selección. La ficha mantiene su corazón. El gesto de mantener pulsado y deslizar se ha retirado.
 
 ## Pendiente
 

@@ -1668,7 +1668,14 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
   function updateHeartButton(button, name) {
     const saved = isSaved(name);
-    button.textContent = saved ? '♥' : '♡';
+    if (button.classList.contains('artist-favorite')) {
+      button.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"
+          fill="${saved ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+      </svg>`;
+    } else {
+      button.textContent = saved ? '♥' : '♡';
+    }
     button.classList.toggle('active', saved);
     button.setAttribute('aria-pressed', String(saved));
     button.setAttribute('aria-label', saved ? `Quitar ${name} de mi cartel` : `Añadir ${name} a mi cartel`);
@@ -2148,13 +2155,16 @@ resolveAct = async function resolveActSafely(name, force = false) {
     return [...new Set((values || []).filter(Boolean))];
   }
 
-  function removeLineupHearts() {
-    document.querySelectorAll('#artistList .artist-favorite').forEach(button => button.remove());
-  }
-
   const style = document.createElement('style');
   style.textContent = `
-    #artistList .artist-favorite { display:none !important; }
+    #artistList .artist-favorite {
+      display:grid; place-items:center;
+      width:44px; height:44px; flex:0 0 44px;
+      padding:0; border:0; border-radius:8px;
+      background:transparent; color:#e8e3ec;
+    }
+    #artistList .artist-favorite.active { background:transparent; color:#ff6f9e; }
+    #artistList .artist-favorite:focus-visible { outline:2px solid #ff6f9e; outline-offset:2px; }
     .artist-title-row {
       display:flex;
       align-items:baseline;
@@ -2199,14 +2209,6 @@ resolveAct = async function resolveActSafely(name, force = false) {
     }
   `;
   document.head.appendChild(style);
-
-  const artistList = $('#artistList');
-  if (artistList) {
-    const observer = new MutationObserver(removeLineupHearts);
-    observer.observe(artistList, {childList: true, subtree: true});
-    removeLineupHearts();
-    $('#artistSearch')?.addEventListener('input', () => requestAnimationFrame(removeLineupHearts));
-  }
 
   const title = $('#artistDetailName');
   const technicalStatus = $('#artistDetailStatus');

@@ -1690,6 +1690,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     refreshVisibleHearts();
     if (activeScreen === 'saved') renderSavedScreen();
     toast(savedArtists.has(name) ? 'Artista añadido a tu cartel' : 'Artista eliminado de tu cartel');
+    document.dispatchEvent(new CustomEvent('festivalfy:cartel-updated'));
   }
 
   const style = document.createElement('style');
@@ -2103,6 +2104,9 @@ resolveAct = async function resolveActSafely(name, force = false) {
   window.FestivalfySaved = {
     list: () => [...savedArtists],
     has: name => savedArtists.has(name),
+    add: name => {
+      if (allArtists().includes(name) && !savedArtists.has(name)) toggleSavedArtist(name);
+    },
     openScreen: openSavedScreen,
     setView: setSavedView,
     artistImage,
@@ -6550,16 +6554,18 @@ resolveAct = async function resolveActSafely(name, force = false) {
   }
 
   const openArtistFromCompareBase = openArtist;
-  openArtist = function openArtistWithCompareViewState(name) {
-    compareScrollGeneration += 1;
-    if (activeScreen === 'compare') {
-      const anchors = [...compareScreen.querySelectorAll('[data-compare-open]')]
+  function captureCompareViewState() {
+    const anchors = [...compareScreen.querySelectorAll('[data-compare-open]')]
         .map(button => ({...compareRowLocation(button), top: button.getBoundingClientRect().top,
           bottom: button.getBoundingClientRect().bottom}))
         .filter(anchor => anchor.bottom > 0 && anchor.top < window.innerHeight)
         .sort((first, second) => Math.abs(first.top) - Math.abs(second.top));
-      compareViewState = {friendId: activeFriendId, scrollY: window.scrollY, anchors};
-    }
+    return {friendId: activeFriendId, scrollY: window.scrollY, anchors};
+  }
+
+  openArtist = function openArtistWithCompareViewState(name) {
+    compareScrollGeneration += 1;
+    if (activeScreen === 'compare') compareViewState = captureCompareViewState();
     return openArtistFromCompareBase(name);
   };
 
@@ -6613,10 +6619,13 @@ resolveAct = async function resolveActSafely(name, force = false) {
     });
   }
 
-  // Keep overlap counts fresh when the user changes their own cartel.
-  document.addEventListener('click', event => {
-    if (event.target.closest('[data-favorite-artist]')) {
-      window.requestAnimationFrame(renderFriends);
+  // Keep counts and comparison groups fresh for hearts and swipe gestures.
+  document.addEventListener('festivalfy:cartel-updated', () => {
+    renderFriends();
+    if (activeScreen === 'compare') {
+      const state = captureCompareViewState();
+      renderCompare();
+      restoreCompareScroll(state, ++compareScrollGeneration);
     }
   });
 

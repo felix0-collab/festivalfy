@@ -6526,15 +6526,12 @@ resolveAct = async function resolveActSafely(name, force = false) {
     const theirs = friend.names;
     const mine = saved.list();
     const mineSet = new Set(mine);
-    const theirsSet = new Set(theirs);
 
     const both = theirs.filter(name => mineSet.has(name));
     const onlyTheirs = theirs.filter(name => !mineSet.has(name));
-    const onlyMine = mine.filter(name => !theirsSet.has(name));
 
     content.innerHTML = groupBlock('Coincidís', 'Los artistas que habéis guardado los dos.', both)
-      + groupBlock(`Solo en el cartel de ${friend.name}`, 'Ideas para descubrir.', onlyTheirs)
-      + groupBlock('Solo en el tuyo', 'Los que has guardado tú.', onlyMine);
+      + groupBlock(`Solo en el cartel de ${friend.name}`, 'Ideas para descubrir.', onlyTheirs);
 
     content.querySelectorAll('[data-compare-open]').forEach(button => {
       button.addEventListener('click', () => openArtist(button.dataset.compareOpen));

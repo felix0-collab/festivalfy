@@ -72,7 +72,7 @@ Quien abra el enlace puede poner un nombre al cartel recibido y Festivalfy lo gu
 
 Los enlaces llevan una huella del catálogo. Si cambia el conjunto de actuaciones, un enlace antiguo se rechaza con un aviso en lugar de arriesgarse a mostrar artistas equivocados.
 
-En la lista del festival y en el cartel de un amigo se puede añadir un artista sin abrir su ficha: mantén pulsada la fila, arrástrala hacia la izquierda y suelta cuando aparezca «Suelta para añadir». El gesto solo añade; no elimina artistas ya guardados. El desplazamiento vertical, los toques normales y los enlaces de Spotify conservan sus acciones. Las comparaciones actualizan sus grupos y conservan la posición al añadir o al volver de una ficha.
+Las comparaciones actualizan sus grupos y conservan la posición al añadir artistas o al volver de una ficha. La selección se realiza con el corazón de la ficha; el gesto de mantener pulsado y deslizar se ha retirado.
 
 ## Pendiente
 

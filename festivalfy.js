@@ -6538,13 +6538,67 @@ resolveAct = async function resolveActSafely(name, force = false) {
     });
   }
 
+  let compareViewState = null;
+  let compareScrollGeneration = 0;
+
+  function compareRowLocation(button) {
+    return {
+      name: button.dataset.compareOpen,
+      group: button.closest('.compare-group')?.querySelector('.compare-group-heading h2')?.textContent || '',
+      day: button.closest('.saved-day-group')?.querySelector('.saved-day-heading h2')?.textContent || ''
+    };
+  }
+
+  const openArtistFromCompareBase = openArtist;
+  openArtist = function openArtistWithCompareViewState(name) {
+    compareScrollGeneration += 1;
+    if (activeScreen === 'compare') {
+      const anchors = [...compareScreen.querySelectorAll('[data-compare-open]')]
+        .map(button => ({...compareRowLocation(button), top: button.getBoundingClientRect().top,
+          bottom: button.getBoundingClientRect().bottom}))
+        .filter(anchor => anchor.bottom > 0 && anchor.top < window.innerHeight)
+        .sort((first, second) => Math.abs(first.top) - Math.abs(second.top));
+      compareViewState = {friendId: activeFriendId, scrollY: window.scrollY, anchors};
+    }
+    return openArtistFromCompareBase(name);
+  };
+
+  function restoreCompareScroll(state, generation) {
+    function restore() {
+      if (generation !== compareScrollGeneration || activeScreen !== 'compare' || activeFriendId !== state.friendId) return;
+      const buttons = [...compareScreen.querySelectorAll('[data-compare-open]')];
+      let target = state.scrollY;
+      // A favorite can move into Coincidís. Anchor to a row that remains in
+      // the same group and day so the surrounding list stays in place.
+      for (const anchor of state.anchors) {
+        const button = buttons.find(button => {
+          const location = compareRowLocation(button);
+          return location.name === anchor.name && location.group === anchor.group && location.day === anchor.day;
+        });
+        if (!button) continue;
+        target = window.scrollY + button.getBoundingClientRect().top - anchor.top;
+        break;
+      }
+      window.scrollTo({top: Math.max(0, target), left: 0, behavior: 'auto'});
+    }
+    window.requestAnimationFrame(() => window.requestAnimationFrame(restore));
+    window.setTimeout(restore, 120);
+  }
+
   function openCompareScreen(friendId) {
+    const targetFriendId = friendId || activeFriendId;
+    const returningFromArtist = activeScreen === 'artist' && previousScreen === 'compare'
+      && compareViewState?.friendId === targetFriendId;
+    const state = returningFromArtist ? compareViewState : null;
+    const generation = ++compareScrollGeneration;
+    if (!returningFromArtist) compareViewState = null;
     if (friendId) activeFriendId = friendId;
     incomingError = null;
     renderCompare();
     showScreen('compare');
     $all('.nav-item').forEach(button => button.classList.remove('active'));
     $('#navSaved')?.classList.add('active');
+    if (state) restoreCompareScroll(state, generation);
   }
 
   const oldBack = $('#artistBack');
@@ -6597,3 +6651,4 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
   renderFriends();
 })();
+

@@ -5,6 +5,11 @@
 
 const CLIENT_ID = '0caa7697944d41fbb6416abac0bf45f8';
 const REDIRECT_URI = 'https://felix0-collab.github.io/festivalfy/callback';
+const FESTIVAL_CATALOG = window.FestivalfyCatalog;
+const ACTIVE_FESTIVAL_ID = FESTIVAL_CATALOG.selectedId(location.search);
+const FESTIVAL_CONFIG = FESTIVAL_CATALOG.entries.find(item => item.id === ACTIVE_FESTIVAL_ID);
+function festivalScopedKey(key) { return FESTIVAL_CATALOG.scopedKey(key, ACTIVE_FESTIVAL_ID); }
+
 const STORAGE = {
   accessToken: 'festivalfy_spotify_access_token',
   refreshToken: 'festivalfy_spotify_refresh_token',
@@ -12,7 +17,7 @@ const STORAGE = {
   verifier: 'festivalfy_spotify_verifier',
   state: 'festivalfy_spotify_state',
   cache: 'festivalfy_spotify_cache_v2',
-  saved: 'festivalfy_saved_festival'
+  saved: festivalScopedKey('festivalfy_saved_festival')
 };
 
 const USER_SPOTIFY = {
@@ -26,7 +31,7 @@ const USER_SPOTIFY = {
   authPurpose: 'festivalfy_spotify_auth_purpose'
 };
 
-const FESTIVAL = {
+const PRIMAVERA_FESTIVAL = {
   name: 'Primavera Sound Barcelona 2027',
   days: {
     'Mié 2': ['Underworld', 'CHVRCHES', 'Mushka', 'FADES'],
@@ -37,13 +42,16 @@ const FESTIVAL = {
   }
 };
 
+const FESTIVAL = {...PRIMAVERA_FESTIVAL, ...FESTIVAL_CONFIG};
+
 const DAY_LABELS = {
   'Mié 2': 'Miércoles 2 de junio',
   'Jue 3': 'Jueves 3 de junio',
   'Vie 4': 'Viernes 4 de junio',
   'Sáb 5': 'Sábado 5 de junio',
   'Dom 6': 'Domingo 6 de junio',
-  'Todos': 'Todo el cartel'
+  'Todos': 'Todo el cartel',
+  ...FESTIVAL_CONFIG.dayLabels
 };
 
 const MULTI_ACTS = {
@@ -79,7 +87,10 @@ const screens = {
 };
 
 let activeScreen = 'home';
-let activeDay = 'Jue 3';
+Object.assign(MULTI_ACTS, FESTIVAL_CONFIG.multiActs);
+Object.assign(SEARCH_ALIASES, FESTIVAL_CONFIG.aliases);
+
+let activeDay = FESTIVAL_CONFIG.days ? Object.keys(FESTIVAL.days)[0] : 'Jue 3';
 let activeArtist = null;
 let previousScreen = 'lineup';
 let currentTab = 'days';
@@ -125,7 +136,10 @@ function toast(message) {
 function renderFestivalTab() {
   $all('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.tab === currentTab));
   const content = $('#festivalTabContent');
-  if (currentTab === 'days') {
+  if (currentTab === 'days' && !FESTIVAL.daysAnnounced) {
+    content.innerHTML = `<div class="info-card"><strong>${allArtists().length} artistas anunciados</strong><p>El reparto por días todavía no está anunciado. Puedes descubrir los artistas confirmados y preparar tu cartel.</p><button class="festival-primary" id="openAnnouncedArtists" type="button">Ver artistas anunciados</button></div>`;
+    $('#openAnnouncedArtists').addEventListener('click', () => openLineup('Todos'));
+  } else if (currentTab === 'days') {
     content.innerHTML = `<div class="day-cards">${Object.keys(FESTIVAL.days).map(day => `
       <button class="day-card" type="button" data-day="${escapeHtml(day)}">
         <span class="calendar-icon">▣</span>
@@ -137,7 +151,7 @@ function renderFestivalTab() {
     content.innerHTML = `<div class="info-card"><strong>${allArtists().length} actuaciones anunciadas</strong><p>Explora el cartel completo y usa el buscador para localizar cualquier artista.</p><button class="festival-primary" id="openAllArtists" type="button">Ver todo el cartel</button></div>`;
     $('#openAllArtists').addEventListener('click', () => openLineup('Todos'));
   } else {
-    content.innerHTML = `<div class="info-card"><strong>Información oficial</strong><p>Festivalfy solo mostrará horarios y escenarios cuando Primavera Sound los confirme. La distribución por días procede del anuncio oficial del festival.</p><p><a href="https://www.primaverasound.com/es/news/primavera-sound-barcelona-sigue-uniendo-los-puntos-de-su-25-edicion-anunciando-la-distribucion-por-dias-de-su-cartel" target="_blank" rel="noopener">Consultar la fuente oficial ↗</a></p></div>`;
+    content.innerHTML = `<div class="info-card"><strong>Información oficial</strong><p>${escapeHtml(FESTIVAL.name)} · ${escapeHtml(FESTIVAL.dates)}</p><p>${FESTIVAL.daysAnnounced ? 'La distribución por días procede del anuncio oficial del festival.' : 'Primer avance del cartel. Reparto por días pendiente de anuncio.'} Los horarios y escenarios se mostrarán cuando el festival los confirme.</p><p><a href="${escapeHtml(FESTIVAL.sourceUrl)}" target="_blank" rel="noopener">Consultar la fuente oficial ↗</a></p></div>`;
   }
 }
 
@@ -156,7 +170,7 @@ function openLineup(day) {
 }
 
 function renderDaySelector() {
-  const days = [...Object.keys(FESTIVAL.days), 'Todos'];
+  const days = FESTIVAL.daysAnnounced ? [...Object.keys(FESTIVAL.days), 'Todos'] : ['Todos'];
   $('#daySelector').innerHTML = days.map(day => `<button class="day-chip ${day === activeDay ? 'active' : ''}" type="button" data-day="${escapeHtml(day)}">${escapeHtml(day)}</button>`).join('');
   $all('.day-chip').forEach(button => button.addEventListener('click', () => {
     activeDay = button.dataset.day;
@@ -250,7 +264,7 @@ function updateSpotifyUi() {
 }
 
 function spotifySummary() {
-  const entries = Object.values(cache);
+  const entries = allArtists().map(name => cache[name]).filter(Boolean);
   const verified = entries.filter(item => item.status === 'verified').length;
   const pending = entries.filter(item => item.status === 'pending').length;
   return `${verified} actuaciones verificadas${pending ? ` · ${pending} por revisar` : ''}.`;
@@ -292,6 +306,7 @@ async function connectSpotify() {
     code_challenge: challenge,
     state
   }).toString();
+  localStorage.setItem('festivalfy_auth_festival', ACTIVE_FESTIVAL_ID);
   location.assign(url.toString());
 }
 
@@ -529,7 +544,7 @@ function exportSpotifyData() {
   const payload = {
     festival: FESTIVAL.name,
     exportedAt: new Date().toISOString(),
-    artists: cache
+    artists: Object.fromEntries(allArtists().filter(name => cache[name]).map(name => [name, cache[name]]))
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
   const url = URL.createObjectURL(blob);
@@ -747,6 +762,7 @@ async function connectUserSpotify() {
     scope: USER_SPOTIFY_PLAYBACK_SCOPES.join(' '),
     show_dialog: 'true'
   }).toString();
+  localStorage.setItem('festivalfy_auth_festival', ACTIVE_FESTIVAL_ID);
   location.assign(url.toString());
 }
 
@@ -764,13 +780,11 @@ function bindEvents() {
     else openLineup(activeDay);
   });
   $('#navHome').addEventListener('click', () => showScreen('home'));
-  $('#navSaved').addEventListener('click', () => toast(localStorage.getItem(STORAGE.saved) === 'true' ? 'Primavera Sound 2027 está guardado' : 'Todavía no has guardado festivales'));
+  $('#navSaved').addEventListener('click', () => toast(localStorage.getItem(STORAGE.saved) === 'true' ? `${FESTIVAL.shortName} está guardado` : 'Todavía no has guardado festivales'));
   $('#navProfile').addEventListener('click', openProfile);
   $('#profileButton').addEventListener('click', openProfile);
   $('#profileSpotifyConnect').addEventListener('click', connectUserSpotify);
-  $('#festivalSearch').addEventListener('input', event => {
-    $('#openFestival').classList.toggle('hidden', !'primavera sound barcelona'.includes(event.target.value.toLowerCase()));
-  });
+  $('#festivalSearch').addEventListener('input', renderHomeFestivals);
   $('#artistSearch').addEventListener('input', renderArtists);
   $('#saveFestival').addEventListener('click', () => {
     const next = localStorage.getItem(STORAGE.saved) !== 'true';
@@ -798,11 +812,15 @@ function init() {
   updateSpotifyUi();
   const params = new URLSearchParams(location.search);
   if (params.get('spotify_user') === 'connected') {
-    history.replaceState({}, '', location.pathname);
+    params.delete('spotify_user');
+    params.delete('spotify');
+    history.replaceState({}, '', `${location.pathname}${params.size ? `?${params}` : ''}`);
     toast('Spotify conectado a tu perfil');
     openProfile();
   } else if (params.get('spotify') === 'connected') {
-    history.replaceState({}, '', location.pathname);
+    params.delete('spotify_user');
+    params.delete('spotify');
+    history.replaceState({}, '', `${location.pathname}${params.size ? `?${params}` : ''}`);
     toast('Spotify conectado correctamente');
     openFestival();
   }
@@ -1646,7 +1664,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
 // Icon-only artist favourites. Selections persist on this device and are
 // available from the existing "Mis festivales" navigation item.
 (() => {
-  const STORAGE_KEY = 'festivalfy_saved_artists_v1';
+  const STORAGE_KEY = festivalScopedKey('festivalfy_saved_artists_v1');
   let savedArtists = loadSavedArtists();
 
   function loadSavedArtists() {
@@ -1907,7 +1925,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     <header class="topbar saved-header">
       <div>
         <span class="eyebrow">Festivalfy</span>
-        <h1>Mi Primavera Sound 2027</h1>
+        <h1>Mi ${escapeHtml(FESTIVAL.shortName)}</h1>
       </div>
     </header>
     <div class="page-content saved-content">
@@ -2476,7 +2494,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
   const baseRenderFestivalTab = renderFestivalTab;
   renderFestivalTab = function renderFestivalTabWithRefinedDays() {
-    if (currentTab !== 'days') {
+    if (currentTab !== 'days' || !FESTIVAL.daysAnnounced) {
       baseRenderFestivalTab();
       return;
     }
@@ -2484,7 +2502,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     $all('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.tab === currentTab));
     const content = $('#festivalTabContent');
     content.innerHTML = `<div class="day-cards day-cards-v2">${Object.keys(FESTIVAL.days).map(day => {
-      const meta = DAY_META[day];
+      const meta = DAY_META[day] || {weekday:'CARTEL',number:'…',sequence:'01',accent:'#67dcb1',rgb:'103,220,177'};
       const count = FESTIVAL.days[day].length;
       const countLabel = `${count} ${count === 1 ? 'actuación' : 'actuaciones'}`;
       return `
@@ -2497,12 +2515,12 @@ resolveAct = async function resolveActSafely(name, force = false) {
           <span class="day-card-date" aria-hidden="true">
             <span class="day-card-weekday">${meta.weekday}</span>
             <strong>${meta.number}</strong>
-            <small>JUN</small>
+            <small>${day === 'Por anunciar' ? '2027' : 'JUN'}</small>
           </span>
           <span class="day-card-copy">
-            <span class="day-card-kicker">Jornada ${meta.sequence}</span>
+            <span class="day-card-kicker">${day === 'Por anunciar' ? 'Primeros nombres' : `Jornada ${meta.sequence}`}</span>
             <strong>${countLabel}</strong>
-            <small>Ver cartel del día</small>
+            <small>${day === 'Por anunciar' ? 'Reparto por días pendiente' : 'Ver cartel del día'}</small>
           </span>
           <span class="day-card-arrow-v2" aria-hidden="true">↗</span>
         </button>`;
@@ -2535,6 +2553,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
 // The public URL contains only the playlist ID; share/invitation parameters
 // are intentionally never stored in Festivalfy.
 (() => {
+  if (ACTIVE_FESTIVAL_ID !== FESTIVAL_CATALOG.DEFAULT_ID) return;
   const PLAYLIST_ID = '7lxl2eyUucpEXVs4PHbv6e';
   const PLAYLIST_URL = `https://open.spotify.com/playlist/${PLAYLIST_ID}`;
   const TARGET_TRACKS = 20;
@@ -2751,8 +2770,10 @@ resolveAct = async function resolveActSafely(name, force = false) {
   }
 
   function availableProfiles() {
+    const acts = new Set(allArtists());
     const profiles = new Map();
-    Object.values(cache || {}).forEach(entry => {
+    Object.entries(cache || {}).forEach(([act,entry]) => {
+      if (!acts.has(act) || entry?.status !== 'verified') return;
       (entry?.profiles || []).forEach(profile => {
         if (!profile?.id || !profile?.name) return;
         if (!profiles.has(profile.id)) profiles.set(profile.id, profile);
@@ -2948,7 +2969,8 @@ resolveAct = async function resolveActSafely(name, force = false) {
         scope: RADIO_SCOPE,
         show_dialog: 'true'
       }).toString();
-      location.assign(url.toString());
+      localStorage.setItem('festivalfy_auth_festival', ACTIVE_FESTIVAL_ID);
+  location.assign(url.toString());
     });
   }
 
@@ -2969,6 +2991,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
 // Verifies playlist ownership/privacy before spending time building the radio
 // and requests every playlist permission needed by the current Spotify setup.
 (() => {
+  if (ACTIVE_FESTIVAL_ID !== FESTIVAL_CATALOG.DEFAULT_ID) return;
   const PLAYLIST_ID = '7lxl2eyUucpEXVs4PHbv6e';
   const REQUIRED_SCOPES = [
     'playlist-modify-public',
@@ -3145,7 +3168,8 @@ resolveAct = async function resolveActSafely(name, force = false) {
       scope: REQUIRED_SCOPES,
       show_dialog: 'true'
     }).toString();
-    location.assign(url.toString());
+    localStorage.setItem('festivalfy_auth_festival', ACTIVE_FESTIVAL_ID);
+  location.assign(url.toString());
   });
 })();
 
@@ -4928,6 +4952,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
   }
 
   async function playFestivalRadioMix({newMix=false,targetTracks=20,onProgress=null}={}) {
+    if (ACTIVE_FESTIVAL_ID !== FESTIVAL_CATALOG.DEFAULT_ID) throw new Error('La radio de este festival todavía no está preparada.');
     if (!isUserSpotifyConnected() || !userSpotifyHasPlaybackScopes()) {
       const error=new Error('Conecta Spotify Premium desde Perfil para escuchar la Radio del festival.');
       error.code='SPOTIFY_PROFILE_REQUIRED';
@@ -5487,7 +5512,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
   const PARAM = 'cartel';
   const FORMAT = '1';
-  const FRIENDS_KEY = 'festivalfy_friend_cartels_v1';
+  const FRIENDS_KEY = festivalScopedKey('festivalfy_friend_cartels_v1');
   const MAX_FRIENDS = 50;
   const index = [...allArtists()].sort((a, b) => a.localeCompare(b, 'es'));
 
@@ -5540,6 +5565,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     const url = new URL(window.location.href);
     url.search = '';
     url.hash = '';
+    if (ACTIVE_FESTIVAL_ID !== FESTIVAL_CATALOG.DEFAULT_ID) url.searchParams.set('festival', ACTIVE_FESTIVAL_ID);
     url.searchParams.set(PARAM, encodeSelection(names));
     return url.toString();
   }
@@ -6036,6 +6062,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
   let currentPosterUrl='';
 
   function posterDayMeta(day) {
+    if (day === 'Por anunciar') return {label:'ARTISTAS ANUNCIADOS',accent:'#67dcb1'};
     return ({
       'Mié 2':{label:'MIÉ 02 JUN',accent:'#d7a0f4'},
       'Jue 3':{label:'JUE 03 JUN',accent:'#8dd6ff'},
@@ -6169,12 +6196,12 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
     ctx.fillStyle='#ffffff';
     ctx.font=`950 76px ${family}`;
-    ctx.fillText('MI PRIMAVERA',margin,164);
-    ctx.fillText('SOUND 2027',margin,242);
+    ctx.fillText(FESTIVAL.posterTitle[0],margin,164);
+    ctx.fillText(FESTIVAL.posterTitle[1],margin,242);
 
     ctx.fillStyle='#8f8594';
     ctx.font=`800 24px ${family}`;
-    ctx.fillText('2–6 JUN 2027',margin,274);
+    ctx.fillText(FESTIVAL.posterDates,margin,274);
 
     const countText=`${total} ${total === 1 ? 'ARTISTA' : 'ARTISTAS'}`;
     ctx.font=`900 22px ${family}`;
@@ -6289,7 +6316,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     if (!currentPosterBlob || !currentPosterUrl) return;
     const link=document.createElement('a');
     link.href=currentPosterUrl;
-    link.download='festivalfy-mi-cartel-primavera-2027.png';
+    link.download=`festivalfy-mi-cartel-${ACTIVE_FESTIVAL_ID}.png`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -6312,14 +6339,14 @@ resolveAct = async function resolveActSafely(name, force = false) {
 
     const file=new File(
       [currentPosterBlob],
-      'festivalfy-mi-cartel-primavera-2027.png',
+      `festivalfy-mi-cartel-${ACTIVE_FESTIVAL_ID}.png`,
       {type:'image/png'}
     );
 
     try {
       const shareData={
-        title:'Mi cartel de Primavera Sound Barcelona 2027',
-        text:'Mi selección para Primavera Sound Barcelona 2027',
+        title:`Mi cartel de ${FESTIVAL.name}`,
+        text:`Mi selección para ${FESTIVAL.name}`,
         files:[file]
       };
       if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
@@ -6372,7 +6399,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
     const url = shareUrl(names);
     try {
       if (navigator.share) {
-        await navigator.share({title: 'Mi cartel de Primavera Sound 2027', url});
+        await navigator.share({title: `Mi cartel de ${FESTIVAL.shortName}`, url});
         return;
       }
       await navigator.clipboard.writeText(url);
@@ -6527,7 +6554,7 @@ resolveAct = async function resolveActSafely(name, force = false) {
       return;
     }
 
-    title.textContent = `El Primavera Sound 2027 de ${friend.name}`;
+    title.textContent = `${FESTIVAL.shortName} de ${friend.name}`;
 
     const theirs = friend.names;
     const mine = saved.list();
@@ -6663,3 +6690,54 @@ resolveAct = async function resolveActSafely(name, force = false) {
   renderFriends();
 })();
 
+
+/* ===== festival-selector.js ===== */
+'use strict';
+
+function renderHomeFestivals() {
+  const list=document.getElementById('festivalList');
+  if (!list) return;
+  const normalize=value=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es');
+  const query=normalize($('#festivalSearch').value.trim());
+  const visible=FESTIVAL_CATALOG.entries.filter(festival=>normalize(`${festival.name} ${festival.city}`).includes(query));
+  list.innerHTML=visible.length ? visible.map(festival=>`
+    <a class="festival-card festival-theme-${festival.theme}" href="?festival=${festival.id}" data-festival="${festival.id}" aria-label="Abrir ${escapeHtml(festival.name)}">
+      <span class="festival-card-glow"></span>
+      <span class="festival-card-content">
+        <span class="eyebrow">${escapeHtml(festival.city.toUpperCase())} · ${festival.year}</span>
+        <span class="festival-title">${festival.title.map(escapeHtml).join('<br>')}</span>
+        <span class="festival-meta">⌖ ${escapeHtml(festival.venue)}<br>▣ ${escapeHtml(festival.dates)}</span>
+        <span class="festival-link">Descubrir el cartel →</span>
+      </span>
+    </a>`).join('') : '<p class="empty-state">No encontramos festivales con ese nombre.</p>';
+  list.querySelectorAll('[data-festival]').forEach(link=>link.addEventListener('click',event=>{
+    if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (link.dataset.festival !== ACTIVE_FESTIVAL_ID) return;
+    event.preventDefault();
+    openFestival();
+  }));
+}
+
+(() => {
+  const list=document.createElement('div');
+  list.id='festivalList';
+  $('#openFestival').replaceWith(list);
+  renderHomeFestivals();
+  const title=FESTIVAL.title.map(escapeHtml).join('<br>');
+  $('#festivalScreen').setAttribute('aria-label',FESTIVAL.name);
+  $('#festivalScreen .hero-copy h1').innerHTML=title;
+  $('#festivalScreen .hero-copy .eyebrow').textContent=`${FESTIVAL.city.toUpperCase()} · ${FESTIVAL.year}`;
+  $('#festivalScreen .festival-facts').innerHTML=`⌖ ${escapeHtml(FESTIVAL.city)}<br>▣ ${escapeHtml(FESTIVAL.dates)}`;
+  $('#festivalScreen .festival-intro > p:not(.festival-facts)').textContent=FESTIVAL.daysAnnounced
+    ? 'Descubre el cartel por jornadas. Los horarios y escenarios se añadirán cuando el festival los publique.'
+    : 'Descubre los artistas confirmados. El reparto por días, los horarios y los escenarios se añadirán cuando el festival los publique.';
+  $('#lineupScreen .lineup-header small').textContent=FESTIVAL.shortName;
+  $('#festivalScreen').classList.add(`festival-theme-${FESTIVAL.theme}`);
+  if (!FESTIVAL.daysAnnounced) {
+    activeDay='Todos';
+    $('[data-tab="days"]').textContent='Anunciados';
+    $('#artistSearch').placeholder='Buscar artista en el cartel';
+  }
+  const params=new URLSearchParams(location.search);
+  if (params.has('festival') && !params.has('cartel') && activeScreen==='home') openFestival();
+})();

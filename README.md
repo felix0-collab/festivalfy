@@ -2,6 +2,14 @@
 
 Web estática (sin servidor) para descubrir los artistas de festivales y escucharlos en Spotify. Se publica con GitHub Pages desde la rama principal.
 
+## Festivales disponibles
+
+La portada permite elegir Primavera Sound Barcelona, Sónar Barcelona y Bilbao BBK Live, todos en su edición 2027. `festival-catalog.js` contiene las fichas y los nuevos carteles, consultados el 23 de noviembre de 2026: 30 actuaciones anunciadas de Sónar y 46 de Bilbao BBK Live. Las fuentes son la [lista oficial de Sónar](https://sonar.es/es/programa/line-up) y el [anuncio oficial de Bilbao BBK Live](https://bilbaobbklive.com/lykke-li-of-monsters-and-men-vetusta-morla-y-mas-se-suman-al-cartel-de-bilbao-bbk-live/). No se asigna ningún día a actuaciones cuyo reparto no se ha publicado; aparecen como artistas anunciados.
+
+Cada festival tiene un identificador estable en la URL (`?festival=sonar-2027` o `?festival=bbk-live-2027`). Cambiar de festival carga su catálogo completo. Favoritos, festival guardado y carteles de amigos se separan por identificador; Primavera conserva sus claves anteriores y sus enlaces compartidos para no perder selecciones existentes. Los enlaces de los otros festivales incluyen su identificador, y la vuelta desde Spotify lo conserva. Los metadatos de artistas revisados pueden reutilizarse entre festivales, pero las nuevas coincidencias no se marcan como verificadas automáticamente: mientras no haya perfil revisado se ofrece la búsqueda en Spotify. La radio existente solo aparece en Primavera, cuya playlist es la que está vinculada.
+
+`node --test tests/festivals.test.cjs` comprueba selección, carteles, búsqueda, almacenamiento independiente, compatibilidad con Primavera, enlaces compartidos y retorno OAuth. Antes de publicar, comprobar también la navegación de cada festival en la web.
+
 ## Qué hay en el proyecto
 
 - **Datos publicados:** `published-spotify-data-1..4.js` contienen las asociaciones artista → perfil de Spotify revisadas (IDs, nombres, URLs e imágenes). Son el catálogo que ven todos los visitantes.

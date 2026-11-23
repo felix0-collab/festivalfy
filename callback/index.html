@@ -21,6 +21,10 @@
     const REDIRECT_URI = 'https://felix0-collab.github.io/festivalfy/callback';
     const message = document.getElementById('message');
     const backLink = document.getElementById('backLink');
+    const returnUrl = new URL('../', location.href);
+    const returnFestival = localStorage.getItem('festivalfy_auth_festival');
+    if (['sonar-2027','bbk-live-2027'].includes(returnFestival)) returnUrl.searchParams.set('festival',returnFestival);
+    backLink.href = returnUrl.toString();
 
     async function exchangeCode() {
       const params = new URLSearchParams(location.search);
@@ -57,7 +61,9 @@
         localStorage.removeItem('festivalfy_user_spotify_state');
         localStorage.removeItem('festivalfy_user_spotify_verifier');
         localStorage.removeItem('festivalfy_spotify_auth_purpose');
-        location.replace('../?spotify_user=connected');
+        localStorage.removeItem('festivalfy_auth_festival');
+        returnUrl.searchParams.set('spotify_user','connected');
+        location.replace(returnUrl.toString());
       } else {
         localStorage.setItem('festivalfy_spotify_access_token', token.access_token);
         if (token.refresh_token) localStorage.setItem('festivalfy_spotify_refresh_token', token.refresh_token);
@@ -65,7 +71,9 @@
         localStorage.removeItem('festivalfy_spotify_state');
         localStorage.removeItem('festivalfy_spotify_verifier');
         localStorage.removeItem('festivalfy_spotify_auth_purpose');
-        location.replace('../?spotify=connected');
+        localStorage.removeItem('festivalfy_auth_festival');
+        returnUrl.searchParams.set('spotify','connected');
+        location.replace(returnUrl.toString());
       }
     }
 

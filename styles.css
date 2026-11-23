@@ -436,3 +436,16 @@ button { -webkit-tap-highlight-color: transparent; }
   font-weight:900;
 }
 .festival-primary:active { transform:translateY(1px); }
+
+/* Festival selection keeps each edition's visual identity and a compact list. */
+#festivalList { display:grid; gap:18px; padding-bottom:12px; }
+#festivalList .festival-card { height:285px; text-decoration:none; }
+.festival-theme-sonar.festival-card,
+.festival-theme-sonar .festival-hero {
+  background:radial-gradient(circle at 78% 18%,rgba(161,255,111,.24),transparent 32%),linear-gradient(145deg,#255843,#112720 55%,#0b1210);
+}
+.festival-theme-bbk.festival-card,
+.festival-theme-bbk .festival-hero {
+  background:radial-gradient(circle at 78% 18%,rgba(255,191,97,.3),transparent 32%),linear-gradient(145deg,#704327,#302718 55%,#11110c);
+}
+#festivalList .festival-card:focus-visible { outline:2px solid #d7a0f4; outline-offset:4px; }
